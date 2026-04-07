@@ -242,10 +242,14 @@ export class Engine {
       this.playerManager.setFrozen(frozen);
     }
 
-    // If local player is now a ghost, remove fog of war (full vision)
+    // If local player is now a ghost, remove fog of war (full vision).
+    // The mask Graphics must also be hidden — when used as a mask it's
+    // invisible, but as soon as we detach it via mask=null it would
+    // render as a white circle on the ship layer.
     const amGhost = frozen.has(this.localPlayerId);
-    if (this.shipContainer) {
+    if (this.shipContainer && this.fogOfWar) {
       this.shipContainer.mask = amGhost ? null : this.fogOfWar.mask;
+      this.fogOfWar.mask.visible = !amGhost;
     }
   }
 
