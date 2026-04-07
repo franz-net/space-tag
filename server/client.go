@@ -184,17 +184,35 @@ func (c *Client) handleLeaveRoom() {
 	room.removePlayer(c.id)
 	c.roomCode = ""
 
-	// Notify remaining players
+	// Notify remaining players (if any)
 	roomsMu.RLock()
 	_, stillExists := rooms[room.Code]
 	roomsMu.RUnlock()
 
-	if stillExists {
+	if !stillExists {
+		return
+	}
+
+	room.mu.RLock()
+	for pid := range room.Clients {
+		room.sendTo(pid, MsgRoomState, room.roomStatePayload(pid))
+	}
+	inGame := room.Game != nil && room.Phase == PhasePlaying
+	room.mu.RUnlock()
+
+	// If a game was in progress, the win conditions may have changed
+	// (e.g. tagger left → crew wins) and tasks may need re-broadcasting.
+	if inGame {
 		room.mu.RLock()
-		for pid := range room.Clients {
-			room.sendTo(pid, MsgRoomState, room.roomStatePayload(pid))
+		for _, id := range room.Order {
+			tasks := room.Game.Tasks.GetPlayerTasks(id)
+			room.sendTo(id, MsgTaskProgress, TaskProgressPayload{
+				Progress: room.Game.Tasks.Progress(),
+				Tasks:    tasks,
+			})
 		}
 		room.mu.RUnlock()
+		checkWinConditions(room)
 	}
 }
 
@@ -214,10 +232,16 @@ func (c *Client) handleStartGame() {
 	room.mu.RLock()
 	isHost := room.HostID == c.id
 	playerCount := len(room.Players)
+	phase := room.Phase
 	room.mu.RUnlock()
 
 	if !isHost {
 		c.sendEnvelope(MsgError, ErrorPayload{Message: "Only the host can start the game"})
+		return
+	}
+
+	if phase != PhaseLobby {
+		c.sendEnvelope(MsgError, ErrorPayload{Message: "Game already in progress"})
 		return
 	}
 
@@ -459,7 +483,7 @@ func (c *Client) handleCrewWin(room *Room) {
 
 func endGame(room *Room, winner string) {
 	room.mu.Lock()
-	if room.Phase == PhaseEnded {
+	if room.Phase == PhaseEnded || room.Phase == PhaseLobby {
 		room.mu.Unlock()
 		return
 	}
@@ -487,6 +511,28 @@ func endGame(room *Room, winner string) {
 		Winner: winner,
 		Roles:  roles,
 	})
+
+	// Reset the room back to lobby so players can start another round
+	// without recreating the room. Players stay; their game state clears.
+	resetRoomToLobby(room)
+}
+
+func resetRoomToLobby(room *Room) {
+	room.mu.Lock()
+	room.Phase = PhaseLobby
+	room.Game = nil
+	for _, p := range room.Players {
+		p.Alive = true
+		p.Role = ""
+	}
+	room.mu.Unlock()
+
+	// Broadcast new room state to all remaining players
+	room.mu.RLock()
+	for pid := range room.Clients {
+		room.sendTo(pid, MsgRoomState, room.roomStatePayload(pid))
+	}
+	room.mu.RUnlock()
 }
 
 // checkWinConditions checks if either side has won. Call after any state change.

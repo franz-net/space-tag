@@ -62,6 +62,7 @@ interface GameState {
   setRoomState: (payload: RoomStatePayload) => void;
   setGameStarted: (role: Role, myId: string) => void;
   setMapData: (data: MapDataPayload["map"]) => void;
+  returnToLobby: () => void;
   setTaskProgress: (progress: number, tasks: PlayerTaskInfo[]) => void;
   setActiveTask: (task: TaskDataPayload | null) => void;
   setFrozen: (ids: string[]) => void;
@@ -113,15 +114,17 @@ export const useGameStore = create<GameState>((set) => ({
   clearError: () => set({ error: null }),
 
   setRoomState: (payload) =>
-    set({
+    set((state) => ({
       roomCode: payload.code,
       roomState: payload.state,
       players: payload.players,
       hostId: payload.hostId,
       myId: payload.you,
-      screen: "lobby",
+      // Only auto-transition to lobby on initial join (from home).
+      // Don't yank players out of game/gameover when room_state arrives mid-game.
+      screen: state.screen === "home" ? "lobby" : state.screen,
       error: null,
-    }),
+    })),
 
   setGameStarted: (role, myId) =>
     set({
@@ -132,6 +135,27 @@ export const useGameStore = create<GameState>((set) => ({
     }),
 
   setMapData: (data) => set({ mapData: data }),
+
+  // Return to the lobby (without leaving the room) — used for Play Again
+  returnToLobby: () =>
+    set({
+      screen: "lobby",
+      myRole: null,
+      mapData: null,
+      myTasks: [],
+      taskProgress: 0,
+      activeTask: null,
+      frozenIds: new Set(),
+      tagCooldownEnd: 0,
+      usedEmergency: false,
+      meeting: null,
+      meetingPhase: null,
+      meetingPhaseEnd: 0,
+      chatMessages: [],
+      myVote: null,
+      meetingResult: null,
+      gameOver: null,
+    }),
 
   setTaskProgress: (progress, tasks) =>
     set({ taskProgress: progress, myTasks: tasks }),
