@@ -34,6 +34,62 @@ Players spawn in a 2D top-down spaceship with 6 rooms (Cafeteria, Medbay, Naviga
 
 Frozen players become **ghosts**: they can move freely (no walls, no fog), see everything, and continue completing tasks — so getting tagged isn't a "you lose, sit out" punishment. Kids stay engaged.
 
+## How to play
+
+### 1. Get into a room
+- Type your name on the home screen
+- Click **Create Room** to start a new game, or enter a 4-letter code from a friend and click **Join**
+- You'll see a lobby with everyone in the room
+- The host can add bot players if you don't have enough friends
+
+### 2. Start the game
+- The host clicks **Start Game** (need at least 2 players)
+- You'll see your secret role: **Crewmate** 💙 or **Tagger** 🔴
+- Don't tell anyone what you are!
+
+### 3. Move around the ship
+- **Computer**: Use **WASD** or **arrow keys**
+- **Phone/tablet**: Drag the **joystick** in the bottom-left corner
+
+### 4. If you're a Crewmate
+- Look at your **task list** (top-right) — it shows what to do and where
+- Walk to a **yellow glowing station** in the room shown
+- When you're close, the **USE** button lights up — tap it
+- Solve the simple puzzle to complete the task
+- **Watch out!** If everything goes dark, the Tagger is near...
+- **Win**: complete all your team's tasks before the Tagger freezes everyone
+
+### 5. If you're the Tagger
+- Pretend you're doing tasks so no one suspects you
+- When you're alone with a Crewmate, press the **TAG** button to freeze them
+- The TAG button has a **cooldown** so you can't spam it
+- Don't get caught!
+- **Win**: freeze enough Crewmates so you outnumber them
+
+### 6. Find a frozen friend?
+- Walk up to the icy body
+- The **REPORT** button will pulse blue — tap it
+- Everyone teleports to the Cafeteria for a **meeting**
+
+### 7. Need to call a meeting?
+- Walk into the **Cafeteria**
+- Tap the orange **🚨 EMERGENCY** button
+- (You can only use this once per game!)
+
+### 8. During meetings
+- Look at the **icon messages** at the bottom
+- Tap one to share what you think (like 🔴 "Red is sus" or 🤝 "I was with Blue")
+- When voting time starts, tap a player's face to vote them out
+- Or tap **⏭️ Skip** if you're not sure
+- The player with the most votes goes home
+
+### 9. If you get frozen
+- You become a **ghost** ❄️
+- You can fly anywhere — through walls, no fog of war
+- **Crewmate ghosts can still do tasks** to help your team win!
+- Other living players can't see you
+- Just have fun watching the rest of the game
+
 ## Tech stack
 
 | Layer | Technology | Purpose |

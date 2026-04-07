@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useGameStore } from "@/stores/gameStore";
+import HowToPlay from "./HowToPlay";
 import type { MsgType } from "@/lib/protocol";
 
 interface HomeScreenProps {
@@ -11,6 +12,7 @@ interface HomeScreenProps {
 
 export default function HomeScreen({ send, connected }: HomeScreenProps) {
   const [joinCode, setJoinCode] = useState("");
+  const [showHowTo, setShowHowTo] = useState(false);
   const { playerName, setPlayerName, setError, error, clearError } =
     useGameStore();
 
@@ -121,6 +123,16 @@ export default function HomeScreen({ send, connected }: HomeScreenProps) {
           {error}
         </div>
       )}
+
+      {/* How to play link */}
+      <button
+        onClick={() => setShowHowTo(true)}
+        className="text-gray-400 hover:text-white text-sm underline transition-colors"
+      >
+        How to play
+      </button>
+
+      {showHowTo && <HowToPlay onClose={() => setShowHowTo(false)} />}
     </div>
   );
 }
