@@ -115,8 +115,15 @@ export class Engine {
     this.shipContainer.addChild(this.fogOfWar.mask);
     this.shipContainer.mask = this.fogOfWar.mask;
 
-    // Start game loop
-    this.app.ticker.add(() => this.update());
+    // Start game loop. Wrap in try/catch so one bad frame doesn't kill
+    // the PixiJS ticker and freeze the canvas forever.
+    this.app.ticker.add(() => {
+      try {
+        this.update();
+      } catch (err) {
+        console.error("Engine update error:", err);
+      }
+    });
   }
 
   setupTasks(tasks: PlayerTaskInfo[]) {

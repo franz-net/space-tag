@@ -110,32 +110,37 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
     }
   }, [myTasks]);
 
-  // Poll for position updates and nearby state
+  // Poll for position updates and nearby state.
+  // Errors here MUST NOT kill the rAF loop — wrap each call so the next
+  // frame still runs and the game doesn't appear frozen.
   useEffect(() => {
     let animId: number;
     const poll = () => {
-      if (engineRef.current && positionsRef.current) {
-        engineRef.current.updatePositions(positionsRef.current.positions);
-        engineRef.current.setBodies(positionsRef.current.bodies || {});
-        // Apply frozen state from broadcasts
-        engineRef.current.setFrozen(
-          new Set(positionsRef.current.frozen || [])
-        );
-        // Sync to store too (for HUD)
-        const currentFrozen = useGameStore.getState().frozenIds;
-        const newFrozen = positionsRef.current.frozen || [];
-        if (
-          newFrozen.length !== currentFrozen.size ||
-          newFrozen.some((id) => !currentFrozen.has(id))
-        ) {
-          useGameStore.getState().setFrozen(newFrozen);
+      try {
+        if (engineRef.current && positionsRef.current) {
+          engineRef.current.updatePositions(positionsRef.current.positions);
+          engineRef.current.setBodies(positionsRef.current.bodies || {});
+          engineRef.current.setFrozen(
+            new Set(positionsRef.current.frozen || [])
+          );
+          // Sync to store too (for HUD) only when the set actually changes
+          const currentFrozen = useGameStore.getState().frozenIds;
+          const newFrozen = positionsRef.current.frozen || [];
+          if (
+            newFrozen.length !== currentFrozen.size ||
+            newFrozen.some((id) => !currentFrozen.has(id))
+          ) {
+            useGameStore.getState().setFrozen(newFrozen);
+          }
         }
-      }
-      if (engineRef.current) {
-        setNearTaskId(engineRef.current.nearTaskId);
-        setNearTagTargetId(engineRef.current.nearTagTargetId);
-        setNearBodyId(engineRef.current.nearBodyId);
-        setInCafeteria(engineRef.current.inCafeteria);
+        if (engineRef.current) {
+          setNearTaskId(engineRef.current.nearTaskId);
+          setNearTagTargetId(engineRef.current.nearTagTargetId);
+          setNearBodyId(engineRef.current.nearBodyId);
+          setInCafeteria(engineRef.current.inCafeteria);
+        }
+      } catch (err) {
+        console.error("Game poll error:", err);
       }
       animId = requestAnimationFrame(poll);
     };
