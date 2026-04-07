@@ -3,6 +3,7 @@
 import { useCallback, useRef } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useGameStore } from "@/stores/gameStore";
+import { sounds } from "@/lib/sounds";
 import HomeScreen from "@/components/HomeScreen";
 import Lobby from "@/components/Lobby";
 import GameScreen from "@/components/GameScreen";
@@ -70,11 +71,20 @@ export default function Home() {
         }
         case "task_progress": {
           const tp = payload as TaskProgressPayload;
+          // Detect that one of MY tasks just completed (count went up)
+          const prevDone = useGameStore
+            .getState()
+            .myTasks.filter((t) => t.completed).length;
+          const newDone = tp.tasks.filter((t) => t.completed).length;
+          if (newDone > prevDone) {
+            sounds.taskComplete();
+          }
           setTaskProgress(tp.progress, tp.tasks);
           break;
         }
         case "player_frozen": {
           const f = payload as PlayerFrozenPayload;
+          sounds.freeze();
           freezePlayer(f.playerId);
           break;
         }
@@ -84,6 +94,7 @@ export default function Home() {
           break;
         }
         case "meeting_start": {
+          sounds.meetingStart();
           startMeeting(payload as MeetingStartPayload);
           break;
         }
@@ -92,7 +103,11 @@ export default function Home() {
           break;
         }
         case "meeting_end": {
-          endMeeting(payload as MeetingEndPayload);
+          const me = payload as MeetingEndPayload;
+          if (me.ejectedId) {
+            sounds.ejection();
+          }
+          endMeeting(me);
           // Clear meeting after a short reveal delay
           setTimeout(() => {
             clearMeeting();
@@ -100,7 +115,21 @@ export default function Home() {
           break;
         }
         case "game_over": {
-          setGameOver(payload as GameOverPayload);
+          const go = payload as GameOverPayload;
+          // Win/lose tune from this player's perspective
+          const myId = useGameStore.getState().myId;
+          const myRole = useGameStore.getState().myRole;
+          const me = go.roles.find((r) => r.id === myId);
+          const iWon =
+            (go.winner === "crew" && me?.role === "crewmate") ||
+            (go.winner === "tagger" && me?.role === "tagger") ||
+            (myRole === null && go.winner === "crew");
+          if (iWon) {
+            sounds.win();
+          } else {
+            sounds.lose();
+          }
+          setGameOver(go);
           break;
         }
         case "error": {

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useGameStore } from "@/stores/gameStore";
+import { sounds } from "@/lib/sounds";
+import MuteButton from "./MuteButton";
 import type { MsgType, TaskType } from "@/lib/protocol";
 
 const TASK_ICONS: Record<TaskType, string> = {
@@ -64,26 +66,39 @@ export default function HUD({
   }, []);
 
   const cooldownRemaining = Math.max(0, (tagCooldownEnd - now) / 1000);
+
+  // Soft ping when the tag cooldown just hit zero (tagger only)
+  useEffect(() => {
+    if (myRole !== "tagger" || tagCooldownEnd === 0) return;
+    const remaining = tagCooldownEnd - Date.now();
+    if (remaining <= 0) return;
+    const id = setTimeout(() => sounds.tagReady(), remaining);
+    return () => clearTimeout(id);
+  }, [tagCooldownEnd, myRole]);
   const canTag = myRole === "tagger" && cooldownRemaining === 0 && nearTagTargetId !== null;
   const canEmergency = inCafeteria && !usedEmergency && !isFrozen;
 
   const handleUse = () => {
     if (!nearTaskId) return;
+    sounds.click();
     send("task_start", { stationId: nearTaskId });
   };
 
   const handleTag = () => {
     if (!canTag || !nearTagTargetId) return;
+    sounds.tag();
     send("tag_player", { targetId: nearTagTargetId });
   };
 
   const handleReport = () => {
     if (!nearBodyId) return;
+    sounds.reportBody();
     send("report_body");
   };
 
   const handleEmergency = () => {
     if (!canEmergency) return;
+    sounds.reportBody();
     send("emergency");
   };
 
@@ -227,17 +242,20 @@ export default function HUD({
             <span className="ml-2 text-blue-300 text-sm">❄️ Ghost</span>
           )}
         </div>
-        <button
-          onClick={() => {
-            if (confirm("Leave the game?")) {
-              send("leave_room");
-              useGameStore.getState().leaveRoom();
-            }
-          }}
-          className="px-3 py-1.5 rounded-lg bg-black/40 hover:bg-red-900/60 text-gray-400 hover:text-white text-xs transition-colors"
-        >
-          Leave Game
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (confirm("Leave the game?")) {
+                send("leave_room");
+                useGameStore.getState().leaveRoom();
+              }
+            }}
+            className="px-3 py-1.5 rounded-lg bg-black/40 hover:bg-red-900/60 text-gray-400 hover:text-white text-xs transition-colors"
+          >
+            Leave Game
+          </button>
+          <MuteButton />
+        </div>
       </div>
     </>
   );

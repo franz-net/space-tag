@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useGameStore } from "@/stores/gameStore";
+import { sounds } from "@/lib/sounds";
 import { COLOR_HEX, QUICK_MESSAGES, type MsgType } from "@/lib/protocol";
 
 interface Props {
@@ -54,12 +55,14 @@ export default function MeetingScreen({ send }: Props) {
   const myMessagesLeft = Math.max(0, MAX_MESSAGES - myMessageCount);
 
   const handleSendMessage = (msgId: string) => {
+    sounds.click();
     send("chat_message", { messageId: msgId });
   };
 
   const handleVote = (targetId: string) => {
     if (!isAlive || meetingPhase !== "voting") return;
     if (myVote !== null) return; // already voted
+    sounds.vote();
     setMyVote(targetId);
     send("cast_vote", { targetId });
   };

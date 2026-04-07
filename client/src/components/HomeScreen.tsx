@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useGameStore } from "@/stores/gameStore";
 import HowToPlay from "./HowToPlay";
+import MuteButton from "./MuteButton";
 import type { MsgType } from "@/lib/protocol";
 
 interface HomeScreenProps {
@@ -133,6 +134,11 @@ export default function HomeScreen({ send, connected }: HomeScreenProps) {
       </button>
 
       {showHowTo && <HowToPlay onClose={() => setShowHowTo(false)} />}
+
+      {/* Mute toggle — fixed to top-right */}
+      <div className="fixed top-4 right-4 z-20">
+        <MuteButton />
+      </div>
     </div>
   );
 }
