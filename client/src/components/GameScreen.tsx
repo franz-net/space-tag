@@ -16,7 +16,7 @@ interface GameScreenProps {
 }
 
 export default function GameScreen({ send, positionsRef }: GameScreenProps) {
-  const { players, myId, mapData, myTasks, gameOver, myRole, meeting } =
+  const { myId, mapData, myTasks, gameOver, myRole, meeting } =
     useGameStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Engine | null>(null);
@@ -39,7 +39,17 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
     }
   }, []);
 
-  // Initialize engine
+  // Initialize engine ONCE per game (not per `players` change!)
+  //
+  // Critical: do NOT include `players` in this dep array. Every time the
+  // server broadcasts room_state (e.g. on game over → resetRoomToLobby),
+  // `players` becomes a new array reference. If `players` were a dep, the
+  // effect would re-run, destroying the PixiJS app + WebGL context, and
+  // the new app.init() on the same canvas would silently fail to start
+  // its ticker — leading to a frozen-looking screen with no errors.
+  //
+  // Player info is read from the store at init time. Other state (role,
+  // tasks, frozen) is propagated by the dedicated effects below.
   useEffect(() => {
     if (!canvasRef.current || !mapData || !myId) return;
 
@@ -47,7 +57,7 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
     const container = containerRef.current!;
     const engine = new Engine(onMove);
 
-    const playerInfos = players.map((p) => ({
+    const initialPlayers = useGameStore.getState().players.map((p) => ({
       id: p.id,
       color: p.color,
       name: p.name,
@@ -58,7 +68,7 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
       .init(canvas, container.clientWidth, container.clientHeight)
       .then(() => {
         if (cancelled) return;
-        engine.setupMap(mapData, playerInfos, myId);
+        engine.setupMap(mapData, initialPlayers, myId);
         const state = useGameStore.getState();
         if (state.myTasks.length > 0) {
           engine.setupTasks(state.myTasks);
@@ -87,7 +97,8 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
       engine.destroy();
       engineRef.current = null;
     };
-  }, [mapData, myId, players, onMove]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapData, myId, onMove]);
 
   // Update role on engine when it changes
   useEffect(() => {
