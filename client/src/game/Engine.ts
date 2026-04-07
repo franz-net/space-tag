@@ -248,17 +248,21 @@ export class Engine {
     }
   }
 
+  private lastAmGhost = false;
   setFrozen(frozen: Set<string>) {
     this.frozenIds = frozen;
     if (this.playerManager) {
       this.playerManager.setFrozen(frozen);
     }
 
-    // If the local player is a ghost, ghosts have full vision: detach the
-    // fog of war mask AND fully remove the mask Graphics from the scene
-    // tree. We can't rely on visible=false alone because PixiJS may still
-    // draw a Graphics that was previously used as a mask.
+    // Only run the mask transition once when the ghost state actually
+    // changes, not on every poll tick.
     const amGhost = frozen.has(this.localPlayerId);
+    if (amGhost === this.lastAmGhost) return;
+    this.lastAmGhost = amGhost;
+
+    console.log("[Engine] Ghost transition:", amGhost);
+
     if (this.shipContainer && this.fogOfWar) {
       const mask = this.fogOfWar.mask;
       if (amGhost) {
