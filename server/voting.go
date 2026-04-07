@@ -11,7 +11,7 @@ const (
 	TagCooldown        = 25 * time.Second
 	TagRange           = 70.0
 	ReportRange        = 90.0
-	MaxChatMessages    = 3 // per player per meeting
+	MaxChatMessages    = 8 // per player per meeting
 )
 
 // Pre-defined chat messages — kid friendly icons only

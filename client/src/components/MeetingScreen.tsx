@@ -48,6 +48,11 @@ export default function MeetingScreen({ send }: Props) {
   const isAlive = myId ? meeting.alivePlayers.includes(myId) : false;
   const callerName = players.find((p) => p.id === meeting.callerId)?.name ?? "?";
 
+  // Match server's MaxChatMessages — bumped from 3 to 8
+  const MAX_MESSAGES = 8;
+  const myMessageCount = chatMessages.filter((m) => m.senderId === myId).length;
+  const myMessagesLeft = Math.max(0, MAX_MESSAGES - myMessageCount);
+
   const handleSendMessage = (msgId: string) => {
     send("chat_message", { messageId: msgId });
   };
@@ -238,15 +243,23 @@ export default function MeetingScreen({ send }: Props) {
       {/* Quick chat messages */}
       {isAlive && (
         <div className="max-w-2xl mx-auto w-full mt-2">
-          <p className="text-gray-400 text-xs mb-2 text-center">
-            Quick messages
-          </p>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <p className="text-gray-400 text-xs">Quick messages</p>
+            <span
+              className={`text-xs font-semibold ${
+                myMessagesLeft === 0 ? "text-red-400" : "text-gray-500"
+              }`}
+            >
+              ({myMessagesLeft} left)
+            </span>
+          </div>
           <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
             {QUICK_MESSAGES.map((msg) => (
               <button
                 key={msg.id}
                 onClick={() => handleSendMessage(msg.id)}
-                className="flex flex-col items-center gap-1 p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+                disabled={myMessagesLeft === 0}
+                className="flex flex-col items-center gap-1 p-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 title={msg.text}
               >
                 <span className="text-2xl">{msg.icon}</span>
