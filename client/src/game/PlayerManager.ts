@@ -10,7 +10,6 @@ interface PlayerSprite {
   container: Container;
   body: Graphics;
   nameLabel: Text;
-  iceOverlay: Graphics;
   color: string;
   currentX: number;
   currentY: number;
@@ -35,21 +34,14 @@ export class PlayerManager {
   private createSprite(info: PlayerInfo) {
     const playerContainer = new Container();
 
-    // Body circle
+    // Body circle — single clean Graphics with fill + stroke
     const body = new Graphics();
     const hex = parseInt(COLOR_HEX[info.color].replace("#", ""), 16);
-    body.circle(0, 0, PLAYER_RADIUS);
-    body.fill(hex);
-    body.circle(0, 0, PLAYER_RADIUS);
-    body.stroke({ color: 0x000000, width: 2 });
+    body
+      .circle(0, 0, PLAYER_RADIUS)
+      .fill(hex)
+      .stroke({ color: 0x000000, width: 2 });
     playerContainer.addChild(body);
-
-    // Ice overlay (hidden until frozen)
-    const iceOverlay = new Graphics();
-    iceOverlay.circle(0, 0, PLAYER_RADIUS + 4);
-    iceOverlay.fill({ color: 0x93c5fd, alpha: 0.6 });
-    iceOverlay.visible = false;
-    playerContainer.addChild(iceOverlay);
 
     // Name label
     const nameLabel = new Text({
@@ -78,7 +70,6 @@ export class PlayerManager {
       container: playerContainer,
       body,
       nameLabel,
-      iceOverlay,
       color: COLOR_HEX[info.color],
       currentX: 0,
       currentY: 0,
@@ -103,9 +94,9 @@ export class PlayerManager {
       const isFrozen = frozenIds.has(id);
       if (isFrozen !== sprite.frozen) {
         sprite.frozen = isFrozen;
-        // Ghost look: pale/translucent name label, hide ice overlay (body is rendered separately)
-        sprite.iceOverlay.visible = false;
-        sprite.nameLabel.alpha = isFrozen ? 0.5 : 1.0;
+        // Ghost look: smaller (0.7x), more translucent, dim name
+        sprite.nameLabel.alpha = isFrozen ? 0.4 : 1.0;
+        sprite.container.scale.set(isFrozen ? 0.7 : 1.0);
       }
     }
   }
@@ -130,7 +121,7 @@ export class PlayerManager {
 
       if (id === this.localPlayerId) {
         sprite.container.visible = true;
-        sprite.container.alpha = sprite.frozen ? 0.6 : 1.0;
+        sprite.container.alpha = sprite.frozen ? 0.5 : 1.0;
         continue;
       }
 
@@ -141,7 +132,7 @@ export class PlayerManager {
       if (sprite.frozen) {
         // This is a ghost — only ghosts can see them
         sprite.container.visible = localIsGhost;
-        sprite.container.alpha = 0.5;
+        sprite.container.alpha = 0.4;
       } else {
         // Living player
         if (localIsGhost) {
