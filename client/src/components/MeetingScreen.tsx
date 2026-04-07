@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGameStore } from "@/stores/gameStore";
 import { COLOR_HEX, QUICK_MESSAGES, type MsgType } from "@/lib/protocol";
 
@@ -59,7 +59,7 @@ export default function MeetingScreen({ send }: Props) {
     send("cast_vote", { targetId });
   };
 
-  // Group chat messages by sender
+  // Group chat messages by sender (used for tiny bubbles above portraits)
   const messagesByPlayer: Record<string, string[]> = {};
   for (const msg of chatMessages) {
     if (!messagesByPlayer[msg.senderId]) {
@@ -67,6 +67,14 @@ export default function MeetingScreen({ send }: Props) {
     }
     messagesByPlayer[msg.senderId].push(msg.messageId);
   }
+
+  // Auto-scroll chat log to the bottom when new messages arrive
+  const chatLogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (chatLogRef.current) {
+      chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
+    }
+  }, [chatMessages.length]);
 
   // Result phase
   if (meetingResult) {
@@ -98,15 +106,15 @@ export default function MeetingScreen({ send }: Props) {
   }
 
   return (
-    <div className="absolute inset-0 z-30 flex flex-col bg-black/85 backdrop-blur p-4 overflow-y-auto">
+    <div className="absolute inset-0 z-30 flex flex-col bg-black/85 backdrop-blur p-2 sm:p-4 overflow-y-auto">
       {/* Header */}
-      <div className="text-center mb-4">
-        <h1 className="text-2xl font-black text-white">
+      <div className="text-center mb-3 sm:mb-4">
+        <h1 className="text-xl sm:text-2xl font-black text-white">
           {meeting.reason === "body" ? "🚨 Frozen Friend Found!" : "🚨 Emergency Meeting!"}
         </h1>
-        <p className="text-gray-400 text-sm">Called by {callerName}</p>
-        <div className="mt-2 inline-block px-4 py-1 rounded-full bg-gray-800">
-          <span className="text-white font-bold">
+        <p className="text-gray-400 text-xs sm:text-sm">Called by {callerName}</p>
+        <div className="mt-1.5 inline-block px-3 sm:px-4 py-1 rounded-full bg-gray-800">
+          <span className="text-white font-bold text-sm sm:text-base">
             {meetingPhase === "discussion" ? "Discuss: " : "Vote: "}
             {remaining}s
           </span>
@@ -114,7 +122,7 @@ export default function MeetingScreen({ send }: Props) {
       </div>
 
       {/* Players grid for voting */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-2xl mx-auto w-full mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 max-w-2xl mx-auto w-full mb-3 sm:mb-4">
         {alivePlayers.map((player) => {
           const messages = messagesByPlayer[player.id] || [];
           const isVoted = myVote === player.id;
@@ -123,7 +131,7 @@ export default function MeetingScreen({ send }: Props) {
               key={player.id}
               onClick={() => handleVote(player.id)}
               disabled={meetingPhase !== "voting" || !isAlive || myVote !== null}
-              className={`relative flex flex-col items-center gap-2 p-3 rounded-xl transition-all ${
+              className={`relative flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-3 rounded-xl transition-all ${
                 isVoted
                   ? "bg-blue-600 ring-4 ring-blue-300"
                   : meetingPhase === "voting" && isAlive && myVote === null
@@ -148,12 +156,12 @@ export default function MeetingScreen({ send }: Props) {
                 </div>
               )}
               <div
-                className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold border-2 border-black"
+                className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-lg sm:text-xl font-bold border-2 border-black"
                 style={{ backgroundColor: COLOR_HEX[player.color] }}
               >
                 {player.name[0]?.toUpperCase()}
               </div>
-              <span className="text-white text-sm font-medium truncate max-w-full">
+              <span className="text-white text-xs sm:text-sm font-medium truncate max-w-full">
                 {player.name}
                 {player.id === myId && " (you)"}
               </span>
@@ -166,7 +174,7 @@ export default function MeetingScreen({ send }: Props) {
           <button
             onClick={() => handleVote("")}
             disabled={myVote !== null}
-            className={`flex flex-col items-center gap-2 p-3 rounded-xl transition-all ${
+            className={`flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-3 rounded-xl transition-all ${
               myVote === ""
                 ? "bg-blue-600 ring-4 ring-blue-300"
                 : myVote === null
@@ -174,12 +182,57 @@ export default function MeetingScreen({ send }: Props) {
                 : "bg-gray-800/60"
             }`}
           >
-            <div className="w-14 h-14 rounded-full bg-gray-700 flex items-center justify-center text-2xl">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gray-700 flex items-center justify-center text-2xl">
               ⏭️
             </div>
-            <span className="text-white text-sm font-medium">Skip</span>
+            <span className="text-white text-xs sm:text-sm font-medium">
+              Skip
+            </span>
           </button>
         )}
+      </div>
+
+      {/* Chat log — what everyone is saying */}
+      <div className="max-w-2xl mx-auto w-full mb-3">
+        <p className="text-gray-400 text-xs mb-1 text-center">Chat</p>
+        <div
+          ref={chatLogRef}
+          className="bg-gray-900/70 rounded-xl p-2 sm:p-3 max-h-24 sm:max-h-32 overflow-y-auto"
+        >
+          {chatMessages.length === 0 ? (
+            <p className="text-gray-600 text-xs sm:text-sm text-center italic py-1">
+              No one has said anything yet...
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {chatMessages.map((msg, i) => {
+                const sender = players.find((p) => p.id === msg.senderId);
+                const m = QUICK_MESSAGES.find((q) => q.id === msg.messageId);
+                if (!sender || !m) return null;
+                return (
+                  <li
+                    key={i}
+                    className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm min-w-0"
+                  >
+                    <div
+                      className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold border border-black shrink-0"
+                      style={{ backgroundColor: COLOR_HEX[sender.color] }}
+                    >
+                      {sender.name[0]?.toUpperCase()}
+                    </div>
+                    <span className="text-white font-medium shrink-0">
+                      {sender.name}:
+                    </span>
+                    <span className="text-base sm:text-xl shrink-0">
+                      {m.icon}
+                    </span>
+                    <span className="text-gray-200 truncate">{m.text}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
 
       {/* Quick chat messages */}
