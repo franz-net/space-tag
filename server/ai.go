@@ -126,15 +126,16 @@ func AITick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 					allDone := gs.Tasks.AllTasksDone()
 					// Send progress update to all players
 					go func(r *Room, prog float64, done bool) {
-						r.mu.RLock()
-						for _, id := range r.Order {
+						for _, id := range r.snapshotPlayerIDs() {
+							if r.Game == nil {
+								return
+							}
 							tasks := r.Game.Tasks.GetPlayerTasks(id)
 							r.sendTo(id, MsgTaskProgress, TaskProgressPayload{
 								Progress: prog,
 								Tasks:    tasks,
 							})
 						}
-						r.mu.RUnlock()
 						if done {
 							endGame(r, "crew")
 						}

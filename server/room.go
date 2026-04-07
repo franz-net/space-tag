@@ -314,6 +314,18 @@ func (r *Room) sendTo(playerID string, msgType MsgType, payload interface{}) {
 	}
 }
 
+// snapshotPlayerIDs returns a copy of the room's player order under a brief
+// read lock. Use this when you need to iterate players and call methods that
+// take their own locks (sendTo, roomStatePayload, etc.) — calling those from
+// inside a held RLock can deadlock against pending writers.
+func (r *Room) snapshotPlayerIDs() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]string, len(r.Order))
+	copy(out, r.Order)
+	return out
+}
+
 func (r *Room) startGame() {
 	r.mu.Lock()
 

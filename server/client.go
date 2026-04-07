@@ -160,11 +160,9 @@ func (c *Client) handleJoinRoom(payload json.RawMessage) {
 	}
 
 	// Send room state to all players (each gets their own "you" field)
-	room.mu.RLock()
-	for pid := range room.Clients {
+	for _, pid := range room.snapshotPlayerIDs() {
 		room.sendTo(pid, MsgRoomState, room.roomStatePayload(pid))
 	}
-	room.mu.RUnlock()
 }
 
 func (c *Client) handleLeaveRoom() {
@@ -193,25 +191,25 @@ func (c *Client) handleLeaveRoom() {
 		return
 	}
 
-	room.mu.RLock()
-	for pid := range room.Clients {
+	ids := room.snapshotPlayerIDs()
+	for _, pid := range ids {
 		room.sendTo(pid, MsgRoomState, room.roomStatePayload(pid))
 	}
+
+	room.mu.RLock()
 	inGame := room.Game != nil && room.Phase == PhasePlaying
 	room.mu.RUnlock()
 
 	// If a game was in progress, the win conditions may have changed
 	// (e.g. tagger left → crew wins) and tasks may need re-broadcasting.
 	if inGame {
-		room.mu.RLock()
-		for _, id := range room.Order {
+		for _, id := range ids {
 			tasks := room.Game.Tasks.GetPlayerTasks(id)
 			room.sendTo(id, MsgTaskProgress, TaskProgressPayload{
 				Progress: room.Game.Tasks.Progress(),
 				Tasks:    tasks,
 			})
 		}
-		room.mu.RUnlock()
 		checkWinConditions(room)
 	}
 }
@@ -256,11 +254,18 @@ func (c *Client) handleStartGame() {
 	room.broadcast(MsgMapData, MapDataPayload{Map: room.Game.Map})
 
 	// Send each player their role and task assignments privately
-	room.mu.RLock()
-	for _, id := range room.Order {
+	ids := room.snapshotPlayerIDs()
+	for _, id := range ids {
+		room.mu.RLock()
 		p := room.Players[id]
+		role := Role("")
+		if p != nil {
+			role = p.Role
+		}
+		room.mu.RUnlock()
+
 		room.sendTo(id, MsgGameStarted, GameStartedPayload{
-			Role: p.Role,
+			Role: role,
 			You:  id,
 		})
 		// Send task assignments
@@ -270,11 +275,10 @@ func (c *Client) handleStartGame() {
 			Tasks:    tasks,
 		})
 		// Send initial cooldown to the tagger
-		if p.Role == RoleTagger {
+		if role == RoleTagger {
 			room.sendTo(id, MsgCooldown, CooldownPayload{Seconds: 10})
 		}
 	}
-	room.mu.RUnlock()
 
 	// Set initial tag cooldown so tagger can't immediately tag at start
 	room.Game.mu.Lock()
@@ -311,11 +315,9 @@ func (c *Client) handleAddAI() {
 	}
 
 	// Notify all players
-	room.mu.RLock()
-	for pid := range room.Clients {
+	for _, pid := range room.snapshotPlayerIDs() {
 		room.sendTo(pid, MsgRoomState, room.roomStatePayload(pid))
 	}
-	room.mu.RUnlock()
 }
 
 func (c *Client) handleRemoveAI() {
@@ -345,11 +347,9 @@ func (c *Client) handleRemoveAI() {
 		return
 	}
 
-	room.mu.RLock()
-	for pid := range room.Clients {
+	for _, pid := range room.snapshotPlayerIDs() {
 		room.sendTo(pid, MsgRoomState, room.roomStatePayload(pid))
 	}
-	room.mu.RUnlock()
 }
 
 func (c *Client) handleMove(payload json.RawMessage) {
@@ -461,15 +461,13 @@ func (c *Client) handleTaskComplete(payload json.RawMessage) {
 	}
 
 	// Send updated progress to all players (each gets their own task list)
-	room.mu.RLock()
-	for _, id := range room.Order {
+	for _, id := range room.snapshotPlayerIDs() {
 		tasks := room.Game.Tasks.GetPlayerTasks(id)
 		room.sendTo(id, MsgTaskProgress, TaskProgressPayload{
 			Progress: progress,
 			Tasks:    tasks,
 		})
 	}
-	room.mu.RUnlock()
 
 	// Check win condition
 	if allDone {
@@ -528,11 +526,9 @@ func resetRoomToLobby(room *Room) {
 	room.mu.Unlock()
 
 	// Broadcast new room state to all remaining players
-	room.mu.RLock()
-	for pid := range room.Clients {
+	for _, pid := range room.snapshotPlayerIDs() {
 		room.sendTo(pid, MsgRoomState, room.roomStatePayload(pid))
 	}
-	room.mu.RUnlock()
 }
 
 // checkWinConditions checks if either side has won. Call after any state change.
