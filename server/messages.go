@@ -31,6 +31,7 @@ const (
 	MsgMeetingStart MsgType = "meeting_start"
 	MsgChatMessage  MsgType = "chat_message"
 	MsgCastVote     MsgType = "cast_vote"
+	MsgVoteCast     MsgType = "vote_cast"
 	MsgMeetingEnd   MsgType = "meeting_end"
 	MsgCooldown     MsgType = "cooldown"
 )
@@ -141,6 +142,10 @@ type ChatMessagePayload struct {
 
 type CastVotePayload struct {
 	TargetID string `json:"targetId"` // empty string = skip
+}
+
+type VoteCastPayload struct {
+	VoterID string `json:"voterId"` // who voted (target stays secret)
 }
 
 type MeetingEndPayload struct {

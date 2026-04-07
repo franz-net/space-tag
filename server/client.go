@@ -441,6 +441,16 @@ func (c *Client) handleTaskComplete(payload json.RawMessage) {
 		return
 	}
 
+	// Reject task completion during meetings — prevents a task-induced
+	// crew win from running endGame while runMeetingTimeline is still
+	// scheduled (which would race on room.Game becoming nil).
+	room.mu.RLock()
+	phase := room.Phase
+	room.mu.RUnlock()
+	if phase != PhasePlaying {
+		return
+	}
+
 	// Get player role
 	room.mu.RLock()
 	player, ok := room.Players[c.id]
@@ -720,29 +730,33 @@ func (c *Client) handleCastVote(payload json.RawMessage) {
 		return
 	}
 
-	room.Game.Meeting.CastVote(c.id, p.TargetID)
+	if room.Game.Meeting.CastVote(c.id, p.TargetID) {
+		// Broadcast that this player voted (without revealing the target)
+		room.broadcast(MsgVoteCast, VoteCastPayload{VoterID: c.id})
+	}
 }
 
 // startMeeting begins a meeting in the given room. Runs the discussion+voting timeline in a goroutine.
 func startMeeting(room *Room, callerID, reason, bodyID string) {
-	if room.Game == nil {
+	game := room.Game
+	if game == nil {
 		return
 	}
 
-	alive := room.Game.AlivePlayers()
+	alive := game.AlivePlayers()
 	meeting := NewMeeting(callerID, reason, bodyID, alive)
 
-	room.Game.mu.Lock()
-	if room.Game.Meeting != nil {
+	game.mu.Lock()
+	if game.Meeting != nil {
 		// already in a meeting
-		room.Game.mu.Unlock()
+		game.mu.Unlock()
 		return
 	}
-	room.Game.Meeting = meeting
-	room.Game.mu.Unlock()
+	game.Meeting = meeting
+	game.mu.Unlock()
 
 	// Teleport everyone to cafeteria
-	room.Game.TeleportToCafeteria()
+	game.TeleportToCafeteria()
 
 	// Mark room phase
 	room.mu.Lock()
@@ -764,6 +778,12 @@ func startMeeting(room *Room, callerID, reason, bodyID string) {
 }
 
 func runMeetingTimeline(room *Room, meeting *Meeting) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("meeting timeline panic in room %s: %v", room.Code, r)
+		}
+	}()
+
 	// Discussion phase
 	time.Sleep(DiscussionDuration)
 	meeting.SetPhase("voting")
@@ -775,16 +795,23 @@ func runMeetingTimeline(room *Room, meeting *Meeting) {
 	ejectedID := meeting.TallyVotes()
 	wasTagger := false
 
+	// Capture the game ref locally — room.Game could be set to nil
+	// concurrently if endGame fires (e.g. crewmate AI completed the
+	// last task during the meeting).
+	game := room.Game
+	if game == nil {
+		// Game already ended; meeting result is moot.
+		return
+	}
+
 	if ejectedID != "" {
-		room.Game.mu.Lock()
-		// Eject = freeze
-		if room.Game.Roles[ejectedID] == RoleTagger {
+		game.mu.Lock()
+		if game.Roles[ejectedID] == RoleTagger {
 			wasTagger = true
 		}
-		room.Game.Frozen[ejectedID] = true
-		// Remove their body since they're "sent home" not killed
-		delete(room.Game.BodyPos, ejectedID)
-		room.Game.mu.Unlock()
+		game.Frozen[ejectedID] = true
+		delete(game.BodyPos, ejectedID)
+		game.mu.Unlock()
 	}
 
 	// Send results
@@ -797,12 +824,14 @@ func runMeetingTimeline(room *Room, meeting *Meeting) {
 	// Brief pause for the reveal animation
 	time.Sleep(3 * time.Second)
 
-	// Clear meeting
-	room.Game.mu.Lock()
-	room.Game.Meeting = nil
-	// Reset tag cooldown so the tagger can't immediately tag after meeting
-	room.Game.TagCooldown = time.Now().Add(10 * time.Second)
-	room.Game.mu.Unlock()
+	// Clear meeting (re-check game ref in case endGame fired during sleep)
+	game = room.Game
+	if game != nil {
+		game.mu.Lock()
+		game.Meeting = nil
+		game.TagCooldown = time.Now().Add(10 * time.Second)
+		game.mu.Unlock()
+	}
 
 	// Resume gameplay
 	room.mu.Lock()

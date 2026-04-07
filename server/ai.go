@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"math"
 	"math/rand"
 	"time"
@@ -39,6 +40,7 @@ type AIBrain struct {
 	// Meeting state (reset each meeting)
 	MeetingVoted bool
 	MeetingChatted bool
+	VoteDelay      time.Duration // randomized per meeting so AIs don't all vote at once
 }
 
 const (
@@ -81,6 +83,7 @@ func AITick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 	if ai.MeetingVoted || ai.MeetingChatted {
 		ai.MeetingVoted = false
 		ai.MeetingChatted = false
+		ai.VoteDelay = 0
 	}
 
 	pos := gs.Positions[ai.PlayerID]
@@ -103,6 +106,11 @@ func AITick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 				gs.BodyReported[bodyID] = true
 				// Trigger meeting in a goroutine (must release lock first)
 				go func(r *Room, callerID, bid string) {
+					defer func() {
+						if rec := recover(); rec != nil {
+							log.Printf("ai start meeting panic: %v", rec)
+						}
+					}()
 					startMeeting(r, callerID, "body", bid)
 				}(room, ai.PlayerID, bodyID)
 				return
@@ -124,13 +132,19 @@ func AITick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 				if gs.Tasks.CompleteTask(ai.PlayerID, ai.GoalTarget, RoleCrewmate) {
 					progress := gs.Tasks.Progress()
 					allDone := gs.Tasks.AllTasksDone()
-					// Send progress update to all players
+					// Send progress update to all players (async, panic-safe)
 					go func(r *Room, prog float64, done bool) {
+						defer func() {
+							if rec := recover(); rec != nil {
+								log.Printf("ai task complete broadcast panic: %v", rec)
+							}
+						}()
 						for _, id := range r.snapshotPlayerIDs() {
-							if r.Game == nil {
+							game := r.Game
+							if game == nil {
 								return
 							}
-							tasks := r.Game.Tasks.GetPlayerTasks(id)
+							tasks := game.Tasks.GetPlayerTasks(id)
 							r.sendTo(id, MsgTaskProgress, TaskProgressPayload{
 								Progress: prog,
 								Tasks:    tasks,
@@ -334,11 +348,15 @@ func aiTaggerTryTag(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.T
 
 	// Broadcast freeze event in goroutine to avoid lock issues
 	go func(r *Room, victimID string, bodyPos Vec2) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("ai tag broadcast panic: %v", rec)
+			}
+		}()
 		r.broadcast(MsgPlayerFrozen, PlayerFrozenPayload{
 			PlayerID: victimID,
 			Position: bodyPos,
 		})
-		// Check win conditions
 		checkWinConditions(r)
 	}(room, nearestID, gs.Positions[nearestID])
 }
@@ -359,6 +377,11 @@ func aiMeetingTick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 			if messageID != "" && gs.Meeting.CanSendChat(ai.PlayerID) {
 				gs.Meeting.RecordChat(ai.PlayerID)
 				go func(r *Room, sender, msg string) {
+					defer func() {
+						if rec := recover(); rec != nil {
+							log.Printf("ai chat broadcast panic: %v", rec)
+						}
+					}()
 					r.broadcast(MsgChatMessage, ChatMessagePayload{
 						SenderID:  sender,
 						MessageID: msg,
@@ -370,12 +393,25 @@ func aiMeetingTick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 
 	// Vote during voting phase
 	if !ai.MeetingVoted && gs.Meeting.Phase == "voting" {
-		// Wait a few seconds before voting (looks more natural)
+		// Randomize each AI's vote delay so they don't all vote at the same instant
+		if ai.VoteDelay == 0 {
+			ai.VoteDelay = time.Duration(2+rand.Intn(8)) * time.Second
+		}
 		elapsed := now.Sub(gs.Meeting.StartTime) - DiscussionDuration
-		if elapsed > 3*time.Second {
+		if elapsed > ai.VoteDelay {
 			targetID := pickAIVoteTarget(gs, ai)
-			gs.Meeting.CastVote(ai.PlayerID, targetID)
-			ai.MeetingVoted = true
+			if gs.Meeting.CastVote(ai.PlayerID, targetID) {
+				ai.MeetingVoted = true
+				// Broadcast vote_cast in a goroutine (we hold gs.mu here)
+				go func(r *Room, voter string) {
+					defer func() {
+						if rec := recover(); rec != nil {
+							log.Printf("ai vote broadcast panic: %v", rec)
+						}
+					}()
+					r.broadcast(MsgVoteCast, VoteCastPayload{VoterID: voter})
+				}(room, ai.PlayerID)
+			}
 		}
 	}
 }

@@ -25,6 +25,7 @@ export type MsgType =
   | "meeting_start"
   | "chat_message"
   | "cast_vote"
+  | "vote_cast"
   | "meeting_end"
   | "cooldown"
   | "error";
@@ -139,6 +140,10 @@ export interface MeetingStartPayload {
 export interface ChatMessagePayload {
   senderId: string;
   messageId: string;
+}
+
+export interface VoteCastPayload {
+  voterId: string;
 }
 
 export interface MeetingEndPayload {

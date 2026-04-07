@@ -19,6 +19,7 @@ import type {
   PlayerFrozenPayload,
   MeetingStartPayload,
   ChatMessagePayload,
+  VoteCastPayload,
   MeetingEndPayload,
   CooldownPayload,
   ErrorPayload,
@@ -37,6 +38,7 @@ export default function Home() {
     setCooldown,
     startMeeting,
     addChatMessage,
+    recordVoteCast,
     endMeeting,
     clearMeeting,
     setError,
@@ -102,6 +104,11 @@ export default function Home() {
           addChatMessage(payload as ChatMessagePayload);
           break;
         }
+        case "vote_cast": {
+          const vc = payload as VoteCastPayload;
+          recordVoteCast(vc.voterId);
+          break;
+        }
         case "meeting_end": {
           const me = payload as MeetingEndPayload;
           if (me.ejectedId) {
@@ -149,6 +156,7 @@ export default function Home() {
       setCooldown,
       startMeeting,
       addChatMessage,
+      recordVoteCast,
       endMeeting,
       clearMeeting,
       setError,

@@ -16,6 +16,7 @@ export default function MeetingScreen({ send }: Props) {
     meetingPhaseEnd,
     chatMessages,
     myVote,
+    votedPlayers,
     myId,
     players,
     setMyVote,
@@ -134,6 +135,7 @@ export default function MeetingScreen({ send }: Props) {
         {alivePlayers.map((player) => {
           const messages = messagesByPlayer[player.id] || [];
           const isVoted = myVote === player.id;
+          const hasVoted = votedPlayers.has(player.id);
           return (
             <button
               key={player.id}
@@ -147,6 +149,12 @@ export default function MeetingScreen({ send }: Props) {
                   : "bg-gray-800/60 cursor-default"
               }`}
             >
+              {/* "Voted" badge */}
+              {hasVoted && (
+                <div className="absolute -top-2 -left-2 w-7 h-7 rounded-full bg-green-500 border-2 border-white flex items-center justify-center text-white text-xs font-black shadow-lg">
+                  ✓
+                </div>
+              )}
               {/* Speech bubble messages */}
               {messages.length > 0 && (
                 <div className="absolute -top-2 -right-2 flex gap-1">

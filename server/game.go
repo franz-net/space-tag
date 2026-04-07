@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"math"
 	"sync"
 	"time"
@@ -406,25 +407,38 @@ func (gs *GameState) Stop() {
 
 // RunGameLoop starts the 20Hz game loop for a room.
 // It ticks movement and broadcasts positions.
+//
+// Each tick is wrapped in panic recovery so a single bad tick (e.g. a stale
+// nil deref in AI logic) doesn't kill the loop and freeze every player's
+// client. The error is logged and the loop continues.
 func RunGameLoop(room *Room, gs *GameState) {
 	ticker := time.NewTicker(TickDuration)
 	defer ticker.Stop()
+
+	tickOnce := func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("game tick panic in room %s: %v", room.Code, r)
+			}
+		}()
+		gs.Tick(1.0 / float64(TickRate))
+
+		positions := gs.GetPositions()
+		frozen := gs.GetFrozenList()
+		bodies := gs.GetBodies()
+		room.broadcast(MsgPositions, PositionsPayload{
+			Positions: positions,
+			Frozen:    frozen,
+			Bodies:    bodies,
+		})
+	}
 
 	for {
 		select {
 		case <-gs.stopCh:
 			return
 		case <-ticker.C:
-			gs.Tick(1.0 / float64(TickRate))
-
-			positions := gs.GetPositions()
-			frozen := gs.GetFrozenList()
-			bodies := gs.GetBodies()
-			room.broadcast(MsgPositions, PositionsPayload{
-				Positions: positions,
-				Frozen:    frozen,
-				Bodies:    bodies,
-			})
+			tickOnce()
 		}
 	}
 }

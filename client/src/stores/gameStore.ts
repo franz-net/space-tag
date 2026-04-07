@@ -49,6 +49,7 @@ interface GameState {
   meetingPhaseEnd: number; // timestamp
   chatMessages: ChatMessagePayload[];
   myVote: string | null; // empty string = skip
+  votedPlayers: Set<string>; // IDs of players who have cast a vote
   meetingResult: MeetingEndPayload | null;
 
   // Game over
@@ -71,6 +72,7 @@ interface GameState {
   startMeeting: (payload: MeetingStartPayload) => void;
   addChatMessage: (msg: ChatMessagePayload) => void;
   setMyVote: (targetId: string) => void;
+  recordVoteCast: (voterId: string) => void;
   endMeeting: (result: MeetingEndPayload) => void;
   clearMeeting: () => void;
   setGameOver: (payload: GameOverPayload) => void;
@@ -106,6 +108,7 @@ export const useGameStore = create<GameState>((set) => ({
   meetingPhaseEnd: 0,
   chatMessages: [],
   myVote: null,
+  votedPlayers: new Set(),
   meetingResult: null,
 
   gameOver: null,
@@ -153,6 +156,7 @@ export const useGameStore = create<GameState>((set) => ({
       meetingPhaseEnd: 0,
       chatMessages: [],
       myVote: null,
+      votedPlayers: new Set(),
       meetingResult: null,
       gameOver: null,
     }),
@@ -181,6 +185,7 @@ export const useGameStore = create<GameState>((set) => ({
       meetingPhaseEnd: Date.now() + payload.discussionTime * 1000,
       chatMessages: [],
       myVote: null,
+      votedPlayers: new Set(),
       meetingResult: null,
       activeTask: null, // close any active task
     }),
@@ -189,6 +194,13 @@ export const useGameStore = create<GameState>((set) => ({
     set((state) => ({ chatMessages: [...state.chatMessages, msg] })),
 
   setMyVote: (targetId) => set({ myVote: targetId }),
+
+  recordVoteCast: (voterId) =>
+    set((state) => {
+      const next = new Set(state.votedPlayers);
+      next.add(voterId);
+      return { votedPlayers: next };
+    }),
 
   endMeeting: (result) =>
     set({ meetingResult: result, meetingPhase: null }),
@@ -199,6 +211,7 @@ export const useGameStore = create<GameState>((set) => ({
       meetingPhase: null,
       chatMessages: [],
       myVote: null,
+      votedPlayers: new Set(),
       meetingResult: null,
     }),
 
@@ -224,6 +237,7 @@ export const useGameStore = create<GameState>((set) => ({
       meetingPhase: null,
       chatMessages: [],
       myVote: null,
+      votedPlayers: new Set(),
       meetingResult: null,
       gameOver: null,
       screen: "home",
