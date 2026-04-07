@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import type { Envelope, MsgType } from "@/lib/protocol";
+import { dbg } from "@/lib/debug";
 
 type MessageHandler = (type: MsgType, payload: unknown) => void;
 
@@ -21,26 +22,33 @@ export function useWebSocket(onMessage: MessageHandler) {
     const ws = new WebSocket(wsHost);
 
     ws.onopen = () => {
+      dbg("WS open");
       setConnected(true);
     };
 
     ws.onmessage = (event) => {
       try {
         const env: Envelope = JSON.parse(event.data);
+        // Skip super-noisy types (positions arrives ~20Hz)
+        if (env.type !== "positions") {
+          dbg("WS recv:", env.type);
+        }
         onMessageRef.current(env.type, env.payload);
       } catch {
         console.error("Failed to parse message:", event.data);
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (e) => {
+      dbg("WS close:", e.code, e.reason);
       setConnected(false);
       wsRef.current = null;
       // Reconnect after 2 seconds
       reconnectTimer.current = setTimeout(connect, 2000);
     };
 
-    ws.onerror = () => {
+    ws.onerror = (e) => {
+      dbg("WS error:", e);
       ws.close();
     };
 

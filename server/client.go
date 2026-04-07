@@ -490,16 +490,20 @@ func (c *Client) handleCrewWin(room *Room) {
 }
 
 func endGame(room *Room, winner string) {
+	dbg("endGame called: winner=%s, room=%s", winner, room.Code)
 	room.mu.Lock()
 	if room.Phase == PhaseEnded || room.Phase == PhaseLobby {
+		dbg("endGame: already ended/lobby, skipping")
 		room.mu.Unlock()
 		return
 	}
 	room.Phase = PhaseEnded
 	room.mu.Unlock()
+	dbg("endGame: phase set to ended")
 
 	if room.Game != nil {
 		room.Game.Stop()
+		dbg("endGame: game loop stopped")
 	}
 
 	// Build roles list
@@ -519,13 +523,16 @@ func endGame(room *Room, winner string) {
 		Winner: winner,
 		Roles:  roles,
 	})
+	dbg("endGame: broadcasted game_over")
 
 	// Reset the room back to lobby so players can start another round
 	// without recreating the room. Players stay; their game state clears.
 	resetRoomToLobby(room)
+	dbg("endGame: resetRoomToLobby returned")
 }
 
 func resetRoomToLobby(room *Room) {
+	dbg("resetRoomToLobby: %s", room.Code)
 	room.mu.Lock()
 	room.Phase = PhaseLobby
 	room.Game = nil
@@ -534,29 +541,36 @@ func resetRoomToLobby(room *Room) {
 		p.Role = ""
 	}
 	room.mu.Unlock()
+	dbg("resetRoomToLobby: state cleared, broadcasting room_state")
 
 	// Broadcast new room state to all remaining players
 	for _, pid := range room.snapshotPlayerIDs() {
 		room.sendTo(pid, MsgRoomState, room.roomStatePayload(pid))
 	}
+	dbg("resetRoomToLobby: done")
 }
 
 // checkWinConditions checks if either side has won. Call after any state change.
 func checkWinConditions(room *Room) bool {
-	if room.Game == nil {
+	game := room.Game
+	if game == nil {
+		dbg("checkWinConditions: game is nil, skipping")
 		return false
 	}
 
-	crew, tagger := room.Game.CountAlive()
+	crew, tagger := game.CountAlive()
+	dbg("checkWinConditions: crew=%d, tagger=%d", crew, tagger)
 
 	// Tagger wins if they outnumber or equal the crew (1 vs 1 or fewer)
 	if tagger > 0 && tagger >= crew {
+		dbg("TAGGER WINS — calling endGame")
 		endGame(room, "tagger")
 		return true
 	}
 
 	// Crew wins if all taggers are eliminated
 	if tagger == 0 {
+		dbg("CREW WINS — calling endGame")
 		endGame(room, "crew")
 		return true
 	}
@@ -637,16 +651,20 @@ func (c *Client) handleTagPlayer(payload json.RawMessage) {
 		return
 	}
 
+	dbg("tag attempt: %s -> %s in room %s", c.id, p.TargetID, room.Code)
 	bodyPos, ok := room.Game.TryTag(c.id, p.TargetID, time.Now())
 	if !ok {
+		dbg("tag rejected (cooldown/range/role)")
 		return
 	}
+	dbg("tag SUCCESS: %s frozen at (%.0f, %.0f)", p.TargetID, bodyPos.X, bodyPos.Y)
 
 	// Broadcast the freeze event
 	room.broadcast(MsgPlayerFrozen, PlayerFrozenPayload{
 		PlayerID: p.TargetID,
 		Position: bodyPos,
 	})
+	dbg("broadcasted player_frozen")
 
 	// Send cooldown to tagger
 	c.sendEnvelope(MsgCooldown, CooldownPayload{
@@ -654,7 +672,9 @@ func (c *Client) handleTagPlayer(payload json.RawMessage) {
 	})
 
 	// Check win conditions
+	dbg("calling checkWinConditions after tag")
 	checkWinConditions(room)
+	dbg("checkWinConditions returned")
 }
 
 func (c *Client) handleReportBody() {

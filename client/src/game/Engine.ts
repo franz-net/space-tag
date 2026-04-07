@@ -7,6 +7,7 @@ import { InputHandler } from "./InputHandler";
 import { TaskStationsRenderer } from "./TaskStations";
 import { BodyRenderer } from "./BodyRenderer";
 import type { PlayerColor, PlayerTaskInfo } from "@/lib/protocol";
+import { dbg } from "@/lib/debug";
 
 export interface PlayerInfo {
   id: string;
@@ -138,8 +139,14 @@ export class Engine {
     }
   }
 
+  private updateCount = 0;
   private update() {
     if (!this.playerManager) return;
+    this.updateCount++;
+    // Log a heartbeat every ~2s (60fps * 2 = 120 frames)
+    if (this.updateCount % 120 === 0) {
+      dbg("Engine update heartbeat:", this.updateCount);
+    }
 
     const dir = this.input.getDirection();
 
@@ -261,7 +268,7 @@ export class Engine {
     if (amGhost === this.lastAmGhost) return;
     this.lastAmGhost = amGhost;
 
-    console.log("[Engine] Ghost transition:", amGhost);
+    dbg("Engine ghost transition:", amGhost);
 
     if (this.shipContainer && this.fogOfWar) {
       const mask = this.fogOfWar.mask;
@@ -277,6 +284,7 @@ export class Engine {
         this.shipContainer.mask = mask;
       }
     }
+    dbg("Engine ghost transition done");
   }
 
   setMyRole(role: "crewmate" | "tagger") {

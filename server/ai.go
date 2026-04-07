@@ -341,6 +341,7 @@ func aiTaggerTryTag(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.T
 	}
 
 	// Tag it (we already hold the lock so manipulate state directly)
+	dbg("AI tagger %s freezing %s", ai.PlayerID, nearestID)
 	gs.Frozen[nearestID] = true
 	gs.BodyPos[nearestID] = gs.Positions[nearestID]
 	gs.MoveInputs[nearestID] = Vec2{}

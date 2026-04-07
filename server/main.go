@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net"
 	"net/http"
@@ -8,6 +9,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
+
+// Debug controls verbose per-event logging across the server.
+// Enable with `go run . -debug`.
+var Debug bool
+
+func dbg(format string, args ...interface{}) {
+	if Debug {
+		log.Printf("[DBG] "+format, args...)
+	}
+}
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -42,6 +53,13 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	flag.BoolVar(&Debug, "debug", false, "enable verbose debug logging")
+	flag.Parse()
+
+	if Debug {
+		log.Println("Debug logging ENABLED")
+	}
+
 	hub := newHub()
 	go hub.run()
 
