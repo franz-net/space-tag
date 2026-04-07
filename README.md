@@ -1,178 +1,202 @@
-# SpaceTag - A Kid-Friendly Social Deduction Game
+# SpaceTag
 
-A multiplayer social deduction game inspired by Among Us, designed for kids ages 5-8. No free-text chat — only pre-defined icon messages. AI players fill in when friends aren't available.
+> A kid-friendly multiplayer social deduction game inspired by Among Us.
 
-## Concept
+## Why this exists
 
-Players explore a spaceship, complete tasks, and try to figure out who the secret "tagger" is — all with bright colors, friendly animations, and zero toxicity.
+My son wanted to play **Among Us**. It's a fantastic game — but as a parent, I had concerns.
 
-- **Crewmates** complete simple mini-tasks around the ship
-- **The Tagger** (impostor) secretly "freezes" crewmates
-- **Everyone** votes using icon-based quick chat to find the tagger
-- **AI bots** fill empty player slots so kids can always play
+The chat is unmoderated. Strangers say things to kids that I don't want my kid hearing. The "voting someone out" can get mean. Even the language ("kill", "dead body") felt off for a 6-year-old. And like a lot of free games, there are ads, microtransactions, and pressure to buy cosmetics.
 
-## Tech Stack
+I looked for a kid-friendly alternative and couldn't find one I was happy with. So I decided to build it.
+
+**SpaceTag** is what I came up with: the same core social deduction loop that makes Among Us fun, but rebuilt from the ground up to be safe for young children:
+
+- **No free-text chat.** Communication during meetings is limited to a fixed grid of icon messages ("I saw red", "trust me", "I was doing tasks"). No way for anyone to type anything inappropriate, ever.
+- **No violence.** The impostor doesn't kill — they're the **Tagger**, and they **freeze** crewmates with ice. Frozen players become **ghosts** who can still wander the ship and (if they were crewmates) keep helping their team finish tasks.
+- **AI bots.** When friends aren't around, the room auto-fills with friendly AI players so kids can always play.
+- **No ads. No purchases. No accounts.** Just enter your name, share a 4-letter room code with a friend, and play.
+- **Open source.** MIT licensed. Anyone can read the code, fork it, customize it for their own family, or contribute improvements.
+
+It's a small project built for one specific kid, but if it's useful to other parents or to anyone learning game programming, that's a bonus.
+
+---
+
+## How the game works
+
+Players spawn in a 2D top-down spaceship with 6 rooms (Cafeteria, Medbay, Navigation, Engine, Storage, Reactor). One player is secretly the **Tagger**; the rest are **Crewmates**.
+
+- **Crewmates** wander the ship completing simple tap-and-drag mini-tasks (matching colors, connecting wires, tap targets, repeat-the-pattern). When all tasks are done, the crew wins.
+- **The Tagger** pretends to do tasks while secretly freezing crewmates one at a time (with a cooldown so they can't spam).
+- When someone finds a frozen friend, they hit **REPORT** and everyone gathers in the cafeteria for a **meeting**.
+- During meetings, players use **icon messages** to share suspicions and then **vote** on who to send home. Tied or no votes means no one is ejected.
+- Crew wins by **completing all tasks** OR **voting out the tagger**. Tagger wins if they freeze enough crewmates.
+
+Frozen players become **ghosts**: they can move freely (no walls, no fog), see everything, and continue completing tasks — so getting tagged isn't a "you lose, sit out" punishment. Kids stay engaged.
+
+## Tech stack
 
 | Layer | Technology | Purpose |
-|-------|-----------|---------|
-| Frontend | Next.js + React + PixiJS | UI, menus, 2D game rendering |
-| Backend | Go | WebSocket server, rooms, game logic, AI |
-| Protocol | WebSockets (JSON) | Real-time communication |
-| State | In-memory (Go maps) | No database needed |
+|---|---|---|
+| Frontend | Next.js (App Router) + React + PixiJS v8 | UI, menus, 2D game canvas |
+| State | Zustand | Client game state |
+| Backend | Go + gorilla/websocket | WebSocket server, room management, game loop, AI |
+| Protocol | JSON over WebSockets | Real-time, single connection per player |
+| Storage | In-memory (Go maps) | No database — rooms vanish when empty |
 
-## Project Structure
+The whole game runs from a single Go binary + a static Next.js build. No accounts, no database, no analytics.
+
+## Project structure
 
 ```
-gameX/
-├── server/           # Go backend
-│   ├── main.go       # HTTP + WebSocket server
-│   ├── hub.go        # Connection registry
-│   ├── client.go     # Per-connection read/write pumps
-│   ├── room.go       # Room lifecycle
-│   ├── game.go       # Game state machine + loop
-│   ├── player.go     # Player types + roles
-│   ├── tasks.go      # Task definitions + progress
-│   ├── voting.go     # Meeting + vote logic
-│   ├── ai.go         # AI player behavior
-│   ├── map.go        # Map topology
-│   ├── messages.go   # Protocol message types
-│   └── collision.go  # Collision detection
-├── client/           # Next.js frontend
-│   ├── src/
-│   │   ├── app/          # Pages (home, lobby, game)
-│   │   ├── components/   # React UI components
-│   │   ├── game/         # PixiJS game engine
-│   │   ├── hooks/        # WebSocket, input, state
-│   │   ├── lib/          # Protocol types, constants
-│   │   └── stores/       # Zustand state
-│   └── public/assets/    # Sprites, icons, sounds
-└── README.md
+space-tag/
+├── server/                 # Go backend
+│   ├── main.go             # HTTP + WebSocket entry point
+│   ├── hub.go              # Connection registry
+│   ├── client.go           # Per-connection read/write pumps + handlers
+│   ├── room.go             # Room lifecycle, player slots
+│   ├── game.go             # Game state, 20Hz tick loop, ghost movement
+│   ├── gamemap.go          # Map topology (rooms, hallways, walkability)
+│   ├── collision.go        # Circle-vs-AABB collision + wall sliding
+│   ├── tasks.go            # Task stations, assignment, progress
+│   ├── voting.go           # Meeting state, votes, pre-defined messages
+│   ├── messages.go         # Protocol message types
+│   ├── player.go           # Player + role types
+│   └── errors.go
+└── client/                 # Next.js frontend
+    ├── src/
+    │   ├── app/page.tsx              # Single-page entry, routes by game state
+    │   ├── components/
+    │   │   ├── HomeScreen.tsx        # Name + create/join room
+    │   │   ├── Lobby.tsx             # Player list, bot controls, start
+    │   │   ├── GameScreen.tsx        # PixiJS canvas + HUD overlays
+    │   │   ├── HUD.tsx               # Tasks, action buttons, role badge
+    │   │   ├── TaskOverlay.tsx       # Mini-game overlay
+    │   │   ├── MeetingScreen.tsx     # Voting + quick chat
+    │   │   ├── GameOverScreen.tsx
+    │   │   ├── Joystick.tsx          # Mobile virtual joystick
+    │   │   └── tasks/                # The 4 mini-games
+    │   ├── game/                     # PixiJS engine
+    │   │   ├── Engine.ts
+    │   │   ├── MapRenderer.ts        # Rooms, hallways, starfield
+    │   │   ├── PlayerManager.ts      # Player sprites, ghost visibility
+    │   │   ├── BodyRenderer.ts       # Frozen body sprites
+    │   │   ├── TaskStations.ts
+    │   │   ├── Camera.ts
+    │   │   ├── FogOfWar.ts
+    │   │   └── InputHandler.ts
+    │   ├── hooks/useWebSocket.ts
+    │   ├── lib/protocol.ts           # Message types (mirrors server)
+    │   └── stores/gameStore.ts
+    └── public/
 ```
 
-## Design Principles
+## Design principles
 
-- **Icons over text** — 5-year-olds can't read much, so use colors, shapes, and pictures
-- **No violence** — the impostor "freezes" players (ice/snowflake theme), not kills
-- **No free chat** — only pre-defined icon messages during voting
-- **Simple controls** — WASD/arrows or virtual joystick for mobile
-- **Bright & friendly** — pastel colors, cheerful sounds, encouraging feedback
-- **Color-blind safe** — each player color has a unique shape badge
+These rules drive every decision:
 
-## Game Flow
+1. **Icons over text.** A 5-year-old can't read paragraph instructions. Color, shape, and pictures first.
+2. **No violence language.** "Tag" not "kill". "Freeze" not "die". "Sent home" not "ejected". Frozen players are ghosts, not corpses.
+3. **No free-text input anywhere.** The only text users type is their own name. Communication during meetings is a fixed icon grid validated server-side.
+4. **Frustration-free.** Frozen players become ghosts who can keep playing. Disconnected players don't break the game. Soft player collisions (push apart) instead of getting stuck on each other.
+5. **Touch and keyboard equally first-class.** Virtual joystick for mobile, WASD/arrows for desktop, drag-and-drop for tasks.
+6. **Server-authoritative.** All game logic runs on the server. The client only sends inputs and renders snapshots — no way for a tampered client to cheat.
 
-1. **Lobby** — Create/join room with 4-letter code, wait for players (4-6)
-2. **Roles** — 1 tagger, rest are crewmates (assigned secretly)
-3. **Play** — Crewmates do tasks, tagger freezes players
-4. **Report** — Find a frozen player or hit emergency button → meeting
-5. **Vote** — Send icon messages, vote to eject someone
-6. **Win/Lose** — Crewmates win by finishing tasks or ejecting tagger; tagger wins by freezing enough crewmates
+## Implementation phases
 
----
+### Phase 1: Project Setup + Networking ✅
+- [x] Go server with `gorilla/websocket`
+- [x] JSON envelope protocol (`{type, payload}`)
+- [x] Room system with 4-letter join codes (max 6 players)
+- [x] Hub managing connections, routing to rooms
+- [x] Next.js client (App Router, Tailwind, Zustand)
+- [x] Single-page client with one persistent WebSocket connection
+- [x] Landing page → lobby → game flow
+- [x] Auto-reconnect on disconnect
+- [x] Host can start the game (2+ players required)
+- [x] Random tagger assignment
 
-## Implementation Phases
+### Phase 2: Game Map + Movement ✅
+- [x] 6-room spaceship with hallways (overlapping rects for smooth transitions)
+- [x] PixiJS v8 game engine with layered containers
+- [x] Server-side movement at 20Hz, client interpolation at 60fps
+- [x] Camera follows local player
+- [x] Fog of war (vision circle) — masks ship interior, leaves space visible
+- [x] Wall-sliding collision
+- [x] Soft player-to-player separation (no overlap, no stuck)
+- [x] WASD/arrow keys + virtual joystick on small screens
 
-### Phase 1: Project Setup + Networking Foundation ⬜
-> Goal: WebSocket connection, room system, lobby UI
+### Phase 3: Tasks System ✅
+- [x] 10 task stations across all 6 rooms
+- [x] Each crewmate gets 4 random tasks
+- [x] Task list visible in HUD with room hints
+- [x] **Tap Targets** mini-game (tap appearing stars)
+- [x] **Connect Wires** mini-game (drag-and-drop matching colors)
+- [x] **Match Colors** mini-game (memory pairs)
+- [x] **Simon Says** mini-game (repeat color sequence)
+- [x] Server-side task validation (proximity check + completion tracking)
+- [x] Crew win condition: all crewmate tasks complete
 
-- [ ] Go server with WebSocket support (gorilla/websocket)
-- [ ] Message protocol (JSON envelopes with type + payload)
-- [ ] Room system — create/join with 4-letter codes, max 6 players
-- [ ] Hub for managing connections and routing messages to rooms
-- [ ] Next.js client scaffolding (App Router, Tailwind, Zustand)
-- [ ] Landing page — name input, create room, join with code
-- [ ] Lobby page — player list with colored avatars, room code display
-- [ ] WebSocket hook with auto-reconnect
-- [ ] Host can start the game (2+ players required)
-- [ ] Role assignment on game start (1 tagger, rest crewmates)
-
-### Phase 2: Game Map + Movement ⬜
-> Goal: 2D spaceship map, player movement, real-time sync
-
-- [ ] Map topology — 6 rooms (Cafeteria, Engine, Navigation, Medbay, Reactor, Storage)
-- [ ] PixiJS game engine setup with canvas mounting
-- [ ] Map rendering — colored rooms, hallways, room labels with icons
-- [ ] Player sprites — colored circles with name labels
-- [ ] Movement system — client sends intent, server validates + broadcasts positions
-- [ ] Server game loop at 20Hz for position broadcasting
-- [ ] Camera system — viewport follows local player
-- [ ] Fog of war — circular vision around player
-- [ ] Collision detection — circle vs AABB, wall sliding
-- [ ] Input — keyboard (WASD/arrows) + virtual joystick for mobile
-
-### Phase 3: Tasks System ⬜
-> Goal: Mini-task games, progress tracking, crew win condition
-
-- [ ] Task stations placed around the map (8-10 stations, 1-2 per room)
-- [ ] Task assignment — each crewmate gets 3-4 random tasks
-- [ ] HUD — task progress bar, USE button, role badge
-- [ ] Task interaction — USE button activates when near a station
-- [ ] Mini-game: Tap Targets — tap 5 appearing stars
-- [ ] Mini-game: Connect Wires — drag wires to matching colors
-- [ ] Mini-game: Match Colors — 2x3 memory card matching
-- [ ] Mini-game: Simon Says — repeat a 3-color sequence
-- [ ] Task completion validation (server-side)
-- [ ] Win condition: all crew tasks completed → crewmates win
-
-### Phase 4: Tagger Mechanics + Voting ⬜
-> Goal: Freeze mechanic, meetings, icon-based voting, win/lose
-
-- [ ] TAG button for tagger (active when near a player, 25s cooldown)
-- [ ] Freeze animation — snowflake burst, ice-blue body stays on map
-- [ ] Body discovery — REPORT button when near a frozen player
-- [ ] Emergency meeting button in Cafeteria (1 use per player per game)
-- [ ] Meeting screen — all players teleported to Cafeteria
-- [ ] Pre-defined messages — icon grid (accusation, defense, evidence, reactions)
-- [ ] Discussion phase (30s) + voting phase (15s)
-- [ ] Vote tallying — most votes = ejected, ties = no ejection
-- [ ] Ejection animation — player floats away
-- [ ] Win conditions: tagger ejected → crew wins; living tagger >= living crew → tagger wins
-- [ ] Game over screen — roles revealed, play again button
+### Phase 4: Tagger Mechanics + Voting ✅
+- [x] TAG button with 25s cooldown, 70px range
+- [x] Frozen visual (ice-blue body sprite stays at freeze point)
+- [x] **Ghost mode** for frozen players (free movement, full vision, can still complete tasks)
+- [x] REPORT button when near a body
+- [x] Emergency meeting button (1 use per player, cafeteria only)
+- [x] Meeting screen with icon-based quick chat (14 messages, server-validated)
+- [x] 30s discussion + 20s voting phases
+- [x] Vote tallying (most votes = sent home, ties = no ejection)
+- [x] Win conditions: crew wins by tasks/eject, tagger wins by outnumbering
+- [x] Game over screen with roles revealed
+- [x] Leave Game button + clean disconnect handling
 
 ### Phase 5: AI Players ⬜
-> Goal: AI bots fill empty slots, playable solo with bots
-
-- [ ] Add AI button in lobby + auto-fill to minimum 4 players
-- [ ] AI names from kid-friendly list (Astro, Cosmo, Nova, Pixel, etc.)
-- [ ] Waypoint pathfinding on map graph (BFS, ~20 nodes)
-- [ ] AI crewmate — navigate to tasks, "complete" them, report bodies
-- [ ] AI tagger — fake tasks, hunt isolated players, freeze when unwatched
-- [ ] AI voting — follow accusations, send 0-1 icon messages
-- [ ] Difficulty settings (easy/normal)
-- [ ] Human-like delays (0.5-1.5s reaction times, movement variation)
+- [ ] Auto-fill empty slots with AI bots
+- [ ] Kid-friendly AI names (Astro, Cosmo, Nova, Pixel...)
+- [ ] BFS pathfinding on map waypoint graph
+- [ ] AI crewmate behavior — navigate to tasks, complete them, report bodies
+- [ ] AI tagger behavior — fake tasks, hunt isolated players, freeze when unwatched
+- [ ] AI voting (follows accusations, sends quick messages)
+- [ ] Easy/normal difficulty
+- [ ] Human-like delays and movement variation
 
 ### Phase 6: Polish ⬜
-> Goal: Sound, animation, tutorial, mobile, accessibility
-
-- [ ] Sound effects — footsteps, chimes, freeze poof, meeting bell, win/lose
-- [ ] Animations — player bobbing, task station glow, confetti, countdown
-- [ ] Tutorial — 5 illustrated slides for first-time players
-- [ ] Mobile responsive — landscape prompt, touch-friendly buttons (48px+)
-- [ ] Accessibility — aria labels, color-blind shape badges, sound toggle
-- [ ] Settings — sound, music, tutorial replay, name change
-- [ ] Room lighting — different ambient colors per room
-- [ ] Starfield background through ship windows
+- [ ] Sound effects (footsteps, chimes, freeze, meeting bell, win/lose)
+- [ ] Animations (player bobbing, station glow, confetti, countdown)
+- [ ] Tutorial (illustrated slides for first-time players)
+- [ ] Accessibility (aria labels, color-blind shape badges, sound toggle)
+- [ ] Settings menu
+- [ ] Room ambient lighting per area
 
 ---
 
-## Running Locally
+## Running locally
+
+You'll need **Go 1.22+** and **Node.js 18+**.
 
 ```bash
-# Terminal 1: Go server
+# Terminal 1 — Go server (port 8080)
 cd server
 go run .
-# Serves on :8080
 
-# Terminal 2: Next.js client
+# Terminal 2 — Next.js dev server (port 3000)
 cd client
 npm install
 npm run dev
-# Serves on :3000, proxies WebSocket to :8080
 ```
 
-Open multiple browser tabs to test multiplayer locally.
+Open http://localhost:3000 in two browser tabs (or your phone on the same network) to test multiplayer locally. Create a room in one tab, share the 4-letter code, join in the other.
 
-## Requirements
+## Contributing
 
-- Go 1.22+
-- Node.js 18+
-- npm or yarn
+This is a personal project but contributions are welcome. If you have ideas — new mini-games, sound effects, art, AI improvements, translations, accessibility fixes — open an issue or PR.
+
+A few principles that guide what gets accepted:
+- Anything added must be appropriate for a 5-year-old.
+- No free-text input from users, ever.
+- No analytics, ads, or third-party tracking.
+- No accounts or persistent storage of player data.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Use it, fork it, customize it for your own kids.
