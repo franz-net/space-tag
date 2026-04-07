@@ -2,7 +2,6 @@ import { Application, Container } from "pixi.js";
 import { MapRenderer, type GameMapData } from "./MapRenderer";
 import { PlayerManager } from "./PlayerManager";
 import { Camera } from "./Camera";
-import { FogOfWar } from "./FogOfWar";
 import { InputHandler } from "./InputHandler";
 import { TaskStationsRenderer } from "./TaskStations";
 import { BodyRenderer } from "./BodyRenderer";
@@ -19,7 +18,6 @@ export class Engine {
   mapRenderer!: MapRenderer;
   playerManager!: PlayerManager;
   camera!: Camera;
-  fogOfWar!: FogOfWar;
   input!: InputHandler;
   taskStations!: TaskStationsRenderer;
   bodyRenderer!: BodyRenderer;
@@ -110,10 +108,10 @@ export class Engine {
       mapData.height
     );
 
-    // Fog of war
-    this.fogOfWar = new FogOfWar();
-    this.shipContainer.addChild(this.fogOfWar.mask);
-    this.shipContainer.mask = this.fogOfWar.mask;
+    // NOTE: fog of war via PixiJS mask was repeatedly causing freezes
+    // and white-screen bugs. Player visibility (hiding distant living
+    // players) is handled by PlayerManager.update() based on distance.
+    // The map rooms/hallways are now always visible.
 
     // Start game loop. Wrap in try/catch so one bad frame doesn't kill
     // the PixiJS ticker and freeze the canvas forever.
@@ -162,12 +160,6 @@ export class Engine {
     const localPos = this.playerManager.getPosition(this.localPlayerId);
     if (localPos) {
       this.camera.follow(localPos.x, localPos.y);
-      // Only update fog when alive — ghosts have full vision and the
-      // mask Graphics is detached from the scene tree
-      const localIsGhost = this.frozenIds.has(this.localPlayerId);
-      if (!localIsGhost) {
-        this.fogOfWar.update(localPos.x, localPos.y);
-      }
 
       // Check proximity to task stations
       this.nearTaskId =
@@ -248,34 +240,10 @@ export class Engine {
     }
   }
 
-  private lastAmGhost = false;
   setFrozen(frozen: Set<string>) {
     this.frozenIds = frozen;
     if (this.playerManager) {
       this.playerManager.setFrozen(frozen);
-    }
-
-    // Only run the mask transition once when the ghost state actually
-    // changes, not on every poll tick.
-    const amGhost = frozen.has(this.localPlayerId);
-    if (amGhost === this.lastAmGhost) return;
-    this.lastAmGhost = amGhost;
-
-    console.log("[Engine] Ghost transition:", amGhost);
-
-    if (this.shipContainer && this.fogOfWar) {
-      const mask = this.fogOfWar.mask;
-      if (amGhost) {
-        this.shipContainer.mask = null;
-        if (mask.parent) {
-          mask.parent.removeChild(mask);
-        }
-      } else {
-        if (!mask.parent) {
-          this.shipContainer.addChild(mask);
-        }
-        this.shipContainer.mask = mask;
-      }
     }
   }
 
