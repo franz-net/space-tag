@@ -155,7 +155,12 @@ export class Engine {
     const localPos = this.playerManager.getPosition(this.localPlayerId);
     if (localPos) {
       this.camera.follow(localPos.x, localPos.y);
-      this.fogOfWar.update(localPos.x, localPos.y);
+      // Only update fog when alive — ghosts have full vision and the
+      // mask Graphics is detached from the scene tree
+      const localIsGhost = this.frozenIds.has(this.localPlayerId);
+      if (!localIsGhost) {
+        this.fogOfWar.update(localPos.x, localPos.y);
+      }
 
       // Check proximity to task stations
       this.nearTaskId =
@@ -242,14 +247,24 @@ export class Engine {
       this.playerManager.setFrozen(frozen);
     }
 
-    // If local player is now a ghost, remove fog of war (full vision).
-    // The mask Graphics must also be hidden — when used as a mask it's
-    // invisible, but as soon as we detach it via mask=null it would
-    // render as a white circle on the ship layer.
+    // If the local player is a ghost, ghosts have full vision: detach the
+    // fog of war mask AND fully remove the mask Graphics from the scene
+    // tree. We can't rely on visible=false alone because PixiJS may still
+    // draw a Graphics that was previously used as a mask.
     const amGhost = frozen.has(this.localPlayerId);
     if (this.shipContainer && this.fogOfWar) {
-      this.shipContainer.mask = amGhost ? null : this.fogOfWar.mask;
-      this.fogOfWar.mask.visible = !amGhost;
+      const mask = this.fogOfWar.mask;
+      if (amGhost) {
+        this.shipContainer.mask = null;
+        if (mask.parent) {
+          mask.parent.removeChild(mask);
+        }
+      } else {
+        if (!mask.parent) {
+          this.shipContainer.addChild(mask);
+        }
+        this.shipContainer.mask = mask;
+      }
     }
   }
 
