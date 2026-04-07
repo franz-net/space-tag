@@ -1,7 +1,7 @@
 import { Container, Graphics } from "pixi.js";
 import { COLOR_HEX, type PlayerColor } from "@/lib/protocol";
 
-const BODY_RADIUS = 16;
+const BODY_RADIUS = 14; // slightly smaller than alive player (16)
 
 interface BodySprite {
   container: Container;
@@ -61,17 +61,17 @@ export class BodyRenderer {
       ? parseInt(COLOR_HEX[colorKey].replace("#", ""), 16)
       : 0x888888;
 
-    // Body — slumped/horizontal look (oval) with ice tint
+    // Body — slightly squashed oval, smaller than alive player
     const body = new Graphics();
-    body.ellipse(0, 0, BODY_RADIUS + 4, BODY_RADIUS - 2);
+    body.ellipse(0, 0, BODY_RADIUS, BODY_RADIUS - 3);
     body.fill(hex);
-    body.ellipse(0, 0, BODY_RADIUS + 4, BODY_RADIUS - 2);
+    body.ellipse(0, 0, BODY_RADIUS, BODY_RADIUS - 3);
     body.stroke({ color: 0x000000, width: 2 });
     c.addChild(body);
 
-    // Ice overlay
+    // Ice halo — just a touch larger than the body
     const ice = new Graphics();
-    ice.ellipse(0, 0, BODY_RADIUS + 6, BODY_RADIUS);
+    ice.ellipse(0, 0, BODY_RADIUS + 2, BODY_RADIUS - 1);
     ice.fill({ color: 0x93c5fd, alpha: 0.55 });
     c.addChild(ice);
 
