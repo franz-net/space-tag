@@ -27,6 +27,20 @@ export default function MeetingScreen({ send }: Props) {
     return () => clearInterval(id);
   }, []);
 
+  // Auto-transition from discussion → voting when discussion timer expires
+  useEffect(() => {
+    if (
+      meetingPhase === "discussion" &&
+      meeting &&
+      Date.now() >= meetingPhaseEnd
+    ) {
+      useGameStore.setState({
+        meetingPhase: "voting",
+        meetingPhaseEnd: Date.now() + meeting.votingTime * 1000,
+      });
+    }
+  }, [now, meetingPhase, meetingPhaseEnd, meeting]);
+
   if (!meeting) return null;
 
   const remaining = Math.max(0, Math.ceil((meetingPhaseEnd - now) / 1000));
