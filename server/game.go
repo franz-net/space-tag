@@ -21,6 +21,8 @@ type GameState struct {
 	TagCooldown time.Time          // earliest time tagger can tag again
 	UsedEmergency map[string]bool  // playerID -> already used emergency
 	Meeting     *Meeting           // current meeting, nil if none
+	AIBrains    map[string]*AIBrain // playerID -> AI brain (only for AI players)
+	Room        *Room              // back-pointer for AI tick callbacks
 	mu          sync.RWMutex
 	stopCh      chan struct{}
 }
@@ -43,7 +45,7 @@ type MapDataPayload struct {
 	Map *GameMap `json:"map"`
 }
 
-func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role) *GameState {
+func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role, aiIDs []string) *GameState {
 	positions := make(map[string]Vec2, len(playerIDs))
 	// Spread players in a circle around spawn so they don't overlap
 	for i, id := range playerIDs {
@@ -57,6 +59,11 @@ func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role) *GameS
 
 	tasks := InitTasks(playerIDs, roles)
 
+	brains := make(map[string]*AIBrain, len(aiIDs))
+	for _, id := range aiIDs {
+		brains[id] = NewAIBrain(id, roles[id])
+	}
+
 	return &GameState{
 		Map:           gm,
 		Positions:     positions,
@@ -67,6 +74,7 @@ func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role) *GameS
 		BodyPos:       make(map[string]Vec2),
 		BodyReported:  make(map[string]bool),
 		UsedEmergency: make(map[string]bool),
+		AIBrains:      brains,
 		stopCh:        make(chan struct{}),
 	}
 }
@@ -247,6 +255,13 @@ func (gs *GameState) SetInput(playerID string, dx, dy float64) {
 func (gs *GameState) Tick(dt float64) {
 	gs.mu.Lock()
 	defer gs.mu.Unlock()
+
+	// Update AI brains (they read state and write MoveInputs).
+	// During meetings, AI brains still tick to vote/chat but don't move.
+	now := time.Now()
+	for _, ai := range gs.AIBrains {
+		AITick(gs, gs.Room, ai, now)
+	}
 
 	// Don't move anyone during a meeting
 	if gs.Meeting != nil {

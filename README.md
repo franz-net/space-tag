@@ -206,15 +206,15 @@ These rules drive every decision:
 - [x] Game over screen with roles revealed
 - [x] Leave Game button + clean disconnect handling
 
-### Phase 5: AI Players ⬜
-- [ ] Auto-fill empty slots with AI bots
-- [ ] Kid-friendly AI names (Astro, Cosmo, Nova, Pixel...)
-- [ ] BFS pathfinding on map waypoint graph
-- [ ] AI crewmate behavior — navigate to tasks, complete them, report bodies
-- [ ] AI tagger behavior — fake tasks, hunt isolated players, freeze when unwatched
-- [ ] AI voting (follows accusations, sends quick messages)
-- [ ] Easy/normal difficulty
-- [ ] Human-like delays and movement variation
+### Phase 5: AI Players ✅
+- [x] Bots can be added/removed in lobby
+- [x] Kid-friendly AI names (Astro, Cosmo, Nova, Pixel, Zippy, Blip, Fizz, Boop...)
+- [x] BFS pathfinding on a 13-node waypoint graph (room + hallway centers)
+- [x] AI crewmate — navigates to tasks, "completes" them after a delay, reports bodies
+- [x] AI tagger — fakes tasks, hunts alive players, freezes when no witnesses within 250 units
+- [x] AI voting (random with skip bias, never votes for self)
+- [x] AI sends quick chat messages during meetings
+- [x] Easy/normal difficulty (witness check on Normal)
 
 ### Phase 6: Polish ⬜
 - [ ] Sound effects (footsteps, chimes, freeze, meeting bell, win/lose)

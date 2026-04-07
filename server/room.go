@@ -340,13 +340,18 @@ func (r *Room) startGame() {
 
 	// Build roles map for task assignment
 	roles := make(map[string]Role, len(ids))
+	aiIDs := []string{}
 	for _, id := range ids {
 		roles[id] = r.Players[id].Role
+		if r.Players[id].AI {
+			aiIDs = append(aiIDs, id)
+		}
 	}
 
 	// Initialize game state
 	gm := BuildMap()
-	r.Game = NewGameState(gm, ids, roles)
+	r.Game = NewGameState(gm, ids, roles, aiIDs)
+	r.Game.Room = r // back-pointer for AI tick callbacks
 
 	r.mu.Unlock()
 
