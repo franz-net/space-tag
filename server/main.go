@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -53,8 +54,42 @@ func main() {
 		serveWs(hub, w, r)
 	})
 
-	log.Println("SpaceTag server starting on :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	const addr = "0.0.0.0:8080"
+	log.Println("SpaceTag server starting on", addr)
+	logLANAddresses("8080")
+	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Fatal("ListenAndServe:", err)
+	}
+}
+
+// logLANAddresses prints reachable URLs at startup so it's obvious what
+// IP to test from a phone or other device on the same network.
+func logLANAddresses(port string) {
+	log.Println("Reachable WebSocket endpoints:")
+	log.Printf("  ws://localhost:%s/ws  (this machine only)", port)
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			ipnet, ok := a.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			ip := ipnet.IP.To4()
+			if ip == nil {
+				continue
+			}
+			log.Printf("  ws://%s:%s/ws  (LAN — open port %s in your firewall)", ip.String(), port, port)
+		}
 	}
 }
