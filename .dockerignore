@@ -1,0 +1,33 @@
+# Build outputs (rebuild fresh inside the image)
+client/.next/
+client/out/
+client/node_modules/
+server/server
+server/spacetag
+server/*.exe
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Logs and tmp
+*.log
+.turbo/
+coverage/
+
+# Git
+.git/
+.github/
+
+# Env files (anything sensitive shouldn't be in the image)
+.env
+.env.local
+.env*.local
+
+# Documentation we don't need at runtime
+README.md
+LICENSE

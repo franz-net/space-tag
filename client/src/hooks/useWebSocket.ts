@@ -17,8 +17,20 @@ export function useWebSocket(onMessage: MessageHandler) {
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    // Connect directly to the Go server — Next.js rewrites don't support WebSocket
-    const wsHost = process.env.NEXT_PUBLIC_WS_URL || `ws://${window.location.hostname}:8080/ws`;
+    // WebSocket URL resolution:
+    // 1. Explicit override via NEXT_PUBLIC_WS_URL (handy for staging)
+    // 2. In dev (npm run dev on :3000), connect to the Go server on :8080
+    // 3. In production, connect to the same origin as the page (Go binary
+    //    serves both the static client and /ws on one port)
+    let wsHost: string;
+    if (process.env.NEXT_PUBLIC_WS_URL) {
+      wsHost = process.env.NEXT_PUBLIC_WS_URL;
+    } else if (process.env.NODE_ENV === "development") {
+      wsHost = `ws://${window.location.hostname}:8080/ws`;
+    } else {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      wsHost = `${protocol}//${window.location.host}/ws`;
+    }
     const ws = new WebSocket(wsHost);
 
     ws.onopen = () => {

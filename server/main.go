@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -54,6 +55,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	flag.BoolVar(&Debug, "debug", false, "enable verbose debug logging")
+	staticDir := flag.String("static", "./client/out", "directory of static client files to serve (set to empty string to disable)")
 	flag.Parse()
 
 	if Debug {
@@ -63,19 +65,39 @@ func main() {
 	hub := newHub()
 	go hub.run()
 
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(hub, w, r)
 	})
 
-	const addr = "0.0.0.0:8080"
+	// Serve the static Next.js export at /. The dev server (npm run dev)
+	// owns this in development; in production the Go binary serves both
+	// the WebSocket and the static client on the same port.
+	if *staticDir != "" {
+		if _, err := os.Stat(*staticDir); err == nil {
+			fs := http.FileServer(http.Dir(*staticDir))
+			mux.Handle("/", fs)
+			log.Printf("Serving static client from %s", *staticDir)
+		} else {
+			log.Printf("Static client directory not found at %s — only /ws and /health will respond", *staticDir)
+		}
+	}
+
+	// Railway sets PORT dynamically. Fall back to 8080 in dev.
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	addr := "0.0.0.0:" + port
 	log.Println("SpaceTag server starting on", addr)
-	logLANAddresses("8080")
-	if err := http.ListenAndServe(addr, nil); err != nil {
+	logLANAddresses(port)
+	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal("ListenAndServe:", err)
 	}
 }
