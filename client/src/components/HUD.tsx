@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useGameStore } from "@/stores/gameStore";
 import { sounds } from "@/lib/sounds";
-import MuteButton from "./MuteButton";
+import SettingsMenu from "./SettingsMenu";
 import type { MsgType, TaskType } from "@/lib/protocol";
 
 const TASK_ICONS: Record<TaskType, string> = {
@@ -242,7 +242,7 @@ export default function HUD({
             <span className="ml-2 text-blue-300 text-sm">❄️ Ghost</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 relative">
           <button
             onClick={() => {
               if (confirm("Leave the game?")) {
@@ -254,7 +254,7 @@ export default function HUD({
           >
             Leave Game
           </button>
-          <MuteButton />
+          <SettingsMenu />
         </div>
       </div>
     </>

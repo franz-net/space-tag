@@ -87,11 +87,22 @@ export default function MeetingScreen({ send }: Props) {
 
   // Result phase
   if (meetingResult) {
-    const ejectedName =
-      players.find((p) => p.id === meetingResult.ejectedId)?.name ?? null;
+    const ejectedPlayer = players.find((p) => p.id === meetingResult.ejectedId) ?? null;
+    const ejectedName = ejectedPlayer?.name ?? null;
     return (
-      <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/85 backdrop-blur">
-        <div className="bg-gray-900 rounded-2xl p-8 max-w-md text-center">
+      <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/85 backdrop-blur overflow-hidden">
+        {/* Floating-away portrait — only when someone was ejected */}
+        {ejectedPlayer && (
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-float-away pointer-events-none">
+            <div
+              className="w-24 h-24 rounded-full flex items-center justify-center text-4xl font-black border-4 border-black shadow-2xl"
+              style={{ backgroundColor: COLOR_HEX[ejectedPlayer.color] }}
+            >
+              {ejectedPlayer.name[0]?.toUpperCase()}
+            </div>
+          </div>
+        )}
+        <div className="bg-gray-900 rounded-2xl p-8 max-w-md text-center relative z-10">
           <h2 className="text-3xl font-black mb-4 text-white">
             {ejectedName ? `${ejectedName} was sent home!` : "No one was sent home"}
           </h2>

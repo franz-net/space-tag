@@ -9,6 +9,7 @@ const VISION_RADIUS = 250;
 interface PlayerSprite {
   container: Container;
   body: Graphics;
+  shape: Graphics;
   nameLabel: Text;
   color: string;
   currentX: number;
@@ -16,6 +17,54 @@ interface PlayerSprite {
   targetX: number;
   targetY: number;
   frozen: boolean;
+  bobPhase: number;
+  prevX: number;
+  prevY: number;
+}
+
+// Each color also gets a unique white shape so colorblind kids can tell
+// players apart at a glance.
+function drawColorShape(g: Graphics, color: string) {
+  g.clear();
+  const s = 6; // half-size
+  switch (color) {
+    case "red":
+      // triangle pointing up
+      g.poly([0, -s, s, s, -s, s]).fill(0xffffff);
+      break;
+    case "blue":
+      // square
+      g.rect(-s, -s, s * 2, s * 2).fill(0xffffff);
+      break;
+    case "green":
+      // circle
+      g.circle(0, 0, s).fill(0xffffff);
+      break;
+    case "yellow":
+      // star (5-point)
+      {
+        const pts: number[] = [];
+        for (let i = 0; i < 10; i++) {
+          const r = i % 2 === 0 ? s + 1 : (s + 1) / 2.3;
+          const a = (Math.PI / 5) * i - Math.PI / 2;
+          pts.push(Math.cos(a) * r, Math.sin(a) * r);
+        }
+        g.poly(pts).fill(0xffffff);
+      }
+      break;
+    case "purple":
+      // diamond
+      g.poly([0, -s - 1, s + 1, 0, 0, s + 1, -s - 1, 0]).fill(0xffffff);
+      break;
+    case "orange":
+      // plus / cross
+      {
+        const t = 2;
+        g.rect(-s, -t, s * 2, t * 2).fill(0xffffff);
+        g.rect(-t, -s, t * 2, s * 2).fill(0xffffff);
+      }
+      break;
+  }
 }
 
 export class PlayerManager {
@@ -43,6 +92,11 @@ export class PlayerManager {
       .stroke({ color: 0x000000, width: 2 });
     playerContainer.addChild(body);
 
+    // Color-blind shape badge — drawn in white on top of the body
+    const shape = new Graphics();
+    drawColorShape(shape, info.color);
+    playerContainer.addChild(shape);
+
     // Name label
     const nameLabel = new Text({
       text: info.name,
@@ -69,6 +123,7 @@ export class PlayerManager {
     this.sprites.set(info.id, {
       container: playerContainer,
       body,
+      shape,
       nameLabel,
       color: COLOR_HEX[info.color],
       currentX: 0,
@@ -76,6 +131,9 @@ export class PlayerManager {
       targetX: 0,
       targetY: 0,
       frozen: false,
+      bobPhase: 0,
+      prevX: 0,
+      prevY: 0,
     });
   }
 
@@ -118,6 +176,24 @@ export class PlayerManager {
 
       sprite.container.x = sprite.currentX;
       sprite.container.y = sprite.currentY;
+
+      // Walking bob — only when moving and not frozen
+      const movedX = sprite.currentX - sprite.prevX;
+      const movedY = sprite.currentY - sprite.prevY;
+      const speed = Math.sqrt(movedX * movedX + movedY * movedY);
+      sprite.prevX = sprite.currentX;
+      sprite.prevY = sprite.currentY;
+      if (!sprite.frozen && speed > 0.3) {
+        sprite.bobPhase += 0.35;
+        const bob = Math.sin(sprite.bobPhase) * 2;
+        sprite.body.y = bob;
+        sprite.shape.y = bob;
+      } else {
+        // Settle back to neutral
+        sprite.bobPhase = 0;
+        sprite.body.y = 0;
+        sprite.shape.y = 0;
+      }
 
       if (id === this.localPlayerId) {
         sprite.container.visible = true;

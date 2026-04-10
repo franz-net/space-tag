@@ -10,3 +10,56 @@ body {
   color: #f9fafb;
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Big bouncy 3-2-1-GO countdown numbers at game start */
+@keyframes countdown-pop {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  35% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  60% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+}
+.animate-countdown-pop {
+  animation: countdown-pop 0.9s ease-out forwards;
+}
+
+/* Confetti pieces that rain down on task completion */
+@keyframes confetti-fall {
+  0% {
+    transform: translate(0, -20px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx, 0), 320px) rotate(720deg);
+    opacity: 0;
+  }
+}
+.animate-confetti {
+  animation: confetti-fall 1.5s ease-in forwards;
+}
+
+/* Ejected player floating away into space */
+@keyframes float-away {
+  0% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, -260px) scale(0.2) rotate(40deg);
+    opacity: 0;
+  }
+}
+.animate-float-away {
+  animation: float-away 2.4s ease-in forwards;
+}

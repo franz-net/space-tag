@@ -8,6 +8,8 @@ import TaskOverlay from "./TaskOverlay";
 import GameOverScreen from "./GameOverScreen";
 import MeetingScreen from "./MeetingScreen";
 import Joystick from "./Joystick";
+import CountdownOverlay from "./CountdownOverlay";
+import { useIsTouch } from "@/hooks/useIsTouch";
 import type { MsgType, PositionsPayload } from "@/lib/protocol";
 
 interface GameScreenProps {
@@ -18,6 +20,7 @@ interface GameScreenProps {
 export default function GameScreen({ send, positionsRef }: GameScreenProps) {
   const { myId, mapData, myTasks, gameOver, myRole, meeting } =
     useGameStore();
+  const isTouch = useIsTouch();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Engine | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -25,6 +28,13 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
   const [nearTagTargetId, setNearTagTargetId] = useState<string | null>(null);
   const [nearBodyId, setNearBodyId] = useState<string | null>(null);
   const [inCafeteria, setInCafeteria] = useState(false);
+  // Show 3-2-1 countdown once at the start of each game (resets when
+  // mapData clears on returnToLobby).
+  const [showCountdown, setShowCountdown] = useState(false);
+  useEffect(() => {
+    if (mapData) setShowCountdown(true);
+    else setShowCountdown(false);
+  }, [mapData]);
 
   const onMove = useCallback(
     (dx: number, dy: number) => {
@@ -172,14 +182,19 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
       {/* Joystick — only on small screens */}
       <Joystick onMove={handleJoystickMove} />
 
-      {/* Controls hint — only on larger screens */}
-      <div className="hidden md:block absolute bottom-4 left-4 z-10 px-3 py-1.5 rounded-lg bg-black/40 text-gray-400 text-sm">
-        WASD or Arrow keys to move
-      </div>
+      {/* Controls hint — only for keyboard users (not touch devices) */}
+      {!isTouch && (
+        <div className="absolute bottom-4 left-4 z-10 px-3 py-1.5 rounded-lg bg-black/40 text-gray-400 text-sm">
+          WASD or Arrow keys to move
+        </div>
+      )}
 
       <canvas ref={canvasRef} className="w-full h-full block" />
 
       <TaskOverlay send={send} />
+      {showCountdown && !meeting && !gameOver && (
+        <CountdownOverlay onDone={() => setShowCountdown(false)} />
+      )}
       {meeting && <MeetingScreen send={send} />}
       {gameOver && <GameOverScreen send={send} />}
     </div>
