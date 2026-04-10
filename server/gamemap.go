@@ -87,30 +87,36 @@ func BuildMap() *GameMap {
 		{Bounds: Rect{1800, 340, 100, 620}},
 	}
 
-	// Obstacles — collision boxes matching the visual props drawn in
-	// MapRenderer.ts. Players cannot walk through furniture.
+	// Obstacles — collision boxes for room furniture. Each box must keep
+	// ≥50px clearance from hallway entrances so players (radius 16) can
+	// pass through without getting stuck.
+	//
+	// Hallway entrances to remember:
+	//   Medbay right: x≈440, y:200-300   |  Medbay bottom: x:200-300, y≈340
+	//   Caf bottom: x:1050-1150, y≈340   |  Engine right: x≈440, y:1000-1100
+	//   Storage left: x≈960, y:1000-1100 |  Storage right: x≈1240, y:1000-1100
 	obstacles := []Rect{
-		// Medbay: two hospital beds
-		{160, 270, 70, 100},
-		{370, 270, 70, 100},
+		// Medbay: two beds in upper portion (clear of bottom/right hallways)
+		{150, 170, 60, 70},
+		{390, 170, 60, 70},
 
-		// Cafeteria: oval table (bounding box of the ellipse, shifted to
-		// the bottom half of the room so it doesn't overlap the spawn point)
-		{1020, 305, 160, 70},
+		// Cafeteria: table in center (narrow enough to leave side passages,
+		// and above the bottom hallway entrance at y:340)
+		{1040, 240, 120, 50},
 
-		// Navigation: console desk
-		{1820, 155, 160, 30},
+		// Navigation: console desk at top
+		{1820, 160, 160, 25},
 
-		// Engine: two turbines (square bounding boxes for the circles)
-		{160, 1030, 80, 80},
-		{360, 1030, 80, 80},
+		// Engine: two turbines centered (right one stays clear of x:440 hallway)
+		{170, 1040, 60, 60},
+		{330, 1040, 60, 60},
 
-		// Storage: two crate stacks
-		{950, 970, 110, 90},
-		{1140, 1070, 115, 90},
+		// Storage: two crate stacks (clear of left x:960 and right x:1240 hallways)
+		{960, 980, 80, 70},
+		{1120, 1080, 80, 70},
 
-		// Reactor: containment core
-		{1850, 1020, 100, 100},
+		// Reactor: containment core in center
+		{1860, 1030, 80, 80},
 	}
 
 	gm := &GameMap{
@@ -118,7 +124,7 @@ func BuildMap() *GameMap {
 		Hallways:  hallways,
 		Walls:     nil,
 		Obstacles: obstacles,
-		SpawnPos:  Vec2{1100, 250}, // cafeteria center
+		SpawnPos:  Vec2{1100, 170}, // cafeteria upper area (below label, above table)
 		Width:     2200,
 		Height:    1300,
 	}

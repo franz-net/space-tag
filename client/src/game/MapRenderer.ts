@@ -155,16 +155,15 @@ export class MapRenderer {
 
   // ─── Per-room decorations ──────────────────────────────────────────
 
-  private drawMedbay(g: Graphics, x: number, y: number, w: number, h: number) {
-    // Two hospital beds side by side
-    for (const bx of [x + 60, x + w - 130]) {
-      // Bed frame
-      g.roundRect(bx, y + h - 130, 70, 100, 6).fill({ color: 0xffffff, alpha: 0.15 });
-      g.roundRect(bx, y + h - 130, 70, 100, 6).stroke({ color: 0xffffff, alpha: 0.3, width: 1 });
+  private drawMedbay(g: Graphics, x: number, y: number, w: number, _h: number) {
+    // Two hospital beds in upper portion of room (clear of hallway exits)
+    for (const bx of [x + 50, x + w - 110]) {
+      g.roundRect(bx, y + 70, 60, 70, 6).fill({ color: 0xffffff, alpha: 0.15 });
+      g.roundRect(bx, y + 70, 60, 70, 6).stroke({ color: 0xffffff, alpha: 0.3, width: 1 });
       // Pillow
-      g.roundRect(bx + 15, y + h - 120, 40, 20, 4).fill({ color: 0xffffff, alpha: 0.25 });
+      g.roundRect(bx + 10, y + 78, 40, 16, 4).fill({ color: 0xffffff, alpha: 0.25 });
     }
-    // Medical cross
+    // Medical cross on the wall
     const crossX = x + w / 2;
     const crossY = y + 70;
     g.rect(crossX - 3, crossY - 12, 6, 24).fill({ color: 0xff4444, alpha: 0.6 });
@@ -172,25 +171,25 @@ export class MapRenderer {
   }
 
   private drawCafeteria(g: Graphics, cx: number, cy: number) {
-    // Long oval table — shifted to bottom half of room to avoid spawn point
-    const tableY = cy + 90;
-    g.ellipse(cx, tableY, 80, 35).fill({ color: 0x8b7355, alpha: 0.4 });
-    g.ellipse(cx, tableY, 80, 35).stroke({ color: 0xffffff, alpha: 0.15, width: 1 });
+    // Oval table — centered in room, narrow to leave side passages
+    const tableY = cy - 10;
+    g.ellipse(cx, tableY, 60, 25).fill({ color: 0x8b7355, alpha: 0.4 });
+    g.ellipse(cx, tableY, 60, 25).stroke({ color: 0xffffff, alpha: 0.15, width: 1 });
     // Stools around the table
     const stools = [
-      [-55, -15],
-      [55, -15],
-      [-55, 55],
-      [55, 55],
+      [-45, -18],
+      [45, -18],
+      [-45, 18],
+      [45, 18],
       [0, -30],
-      [0, 70],
+      [0, 30],
     ];
     for (const [sx, sy] of stools) {
       g.circle(cx + sx, tableY + sy, 8).fill({ color: 0x666666, alpha: 0.35 });
     }
     // Emergency button (decorative red circle on table)
-    g.circle(cx, tableY, 10).fill({ color: 0xff3333, alpha: 0.5 });
-    g.circle(cx, tableY, 10).stroke({ color: 0xff0000, alpha: 0.4, width: 1.5 });
+    g.circle(cx, tableY, 8).fill({ color: 0xff3333, alpha: 0.5 });
+    g.circle(cx, tableY, 8).stroke({ color: 0xff0000, alpha: 0.4, width: 1.5 });
   }
 
   private drawNavigation(
@@ -227,25 +226,25 @@ export class MapRenderer {
     x: number,
     y: number,
     w: number,
-    h: number
+    _h: number
   ) {
-    // Two large turbine circles
-    for (const [tx, ty] of [
-      [x + 100, y + h / 2 + 20],
-      [x + w - 100, y + h / 2 + 20],
-    ]) {
+    // Two turbine circles — centered, clear of right hallway exit
+    const ty = y + 170;
+    for (const tx of [x + 100, x + w - 170]) {
       // Outer ring
-      g.circle(tx, ty, 40).fill({ color: 0x333333, alpha: 0.4 });
-      g.circle(tx, ty, 40).stroke({ color: 0xff8800, alpha: 0.35, width: 2 });
+      g.circle(tx, ty, 30).fill({ color: 0x333333, alpha: 0.4 });
+      g.circle(tx, ty, 30).stroke({ color: 0xff8800, alpha: 0.35, width: 2 });
       // Inner ring
-      g.circle(tx, ty, 18).fill({ color: 0x1a1a1a, alpha: 0.5 });
-      g.circle(tx, ty, 18).stroke({ color: 0xff6600, alpha: 0.3, width: 1 });
+      g.circle(tx, ty, 14).fill({ color: 0x1a1a1a, alpha: 0.5 });
+      g.circle(tx, ty, 14).stroke({ color: 0xff6600, alpha: 0.3, width: 1 });
       // Center bolt
-      g.circle(tx, ty, 5).fill({ color: 0xff8800, alpha: 0.5 });
+      g.circle(tx, ty, 4).fill({ color: 0xff8800, alpha: 0.5 });
     }
     // Connecting pipes between turbines
-    g.rect(x + 140, y + h / 2 + 14, w - 280, 12).fill({ color: 0x555555, alpha: 0.3 });
-    g.rect(x + 140, y + h / 2 + 14, w - 280, 12).stroke({
+    const pipeX = x + 130;
+    const pipeW = w - 300;
+    g.rect(pipeX, ty - 5, pipeW, 10).fill({ color: 0x555555, alpha: 0.3 });
+    g.rect(pipeX, ty - 5, pipeW, 10).stroke({
       color: 0xff8800,
       alpha: 0.2,
       width: 1,
@@ -256,30 +255,40 @@ export class MapRenderer {
     g: Graphics,
     x: number,
     y: number,
-    w: number,
-    h: number
+    _w: number,
+    _h: number
   ) {
-    // Stacked crates
-    const crates = [
-      { cx: 50, cy: 70, cw: 50, ch: 40 },
-      { cx: 50, cy: 120, cw: 50, ch: 40 },
-      { cx: 110, cy: 120, cw: 45, ch: 40 },
-      { cx: w - 100, cy: h - 80, cw: 55, ch: 45 },
-      { cx: w - 100, cy: h - 130, cw: 55, ch: 45 },
-      { cx: w - 160, cy: h - 80, cw: 50, ch: 45 },
+    // Two crate stacks — positioned to match collision boxes and clear
+    // of left (x≈960) and right (x≈1240) hallway entrances
+    const stacks = [
+      // Left stack (collision: x+60, y+80, 80x70)
+      { cx: 60, cy: 80, cw: 80, ch: 70 },
+      // Right stack (collision: x+220, y+180, 80x70)
+      { cx: 220, cy: 180, cw: 80, ch: 70 },
     ];
-    for (const c of crates) {
-      g.roundRect(x + c.cx, y + c.cy, c.cw, c.ch, 3).fill({
+    for (const s of stacks) {
+      // Bottom crate
+      g.roundRect(x + s.cx, y + s.cy, s.cw, s.ch / 2 + 5, 3).fill({
         color: 0xaa8844,
         alpha: 0.35,
       });
-      g.roundRect(x + c.cx, y + c.cy, c.cw, c.ch, 3).stroke({
+      g.roundRect(x + s.cx, y + s.cy, s.cw, s.ch / 2 + 5, 3).stroke({
         color: 0xddaa55,
         alpha: 0.3,
         width: 1,
       });
-      // Tape/band across crate
-      g.rect(x + c.cx + 4, y + c.cy + c.ch / 2 - 2, c.cw - 8, 4).fill({
+      // Top crate (slightly offset)
+      g.roundRect(x + s.cx + 5, y + s.cy + s.ch / 2 + 5, s.cw - 10, s.ch / 2, 3).fill({
+        color: 0xaa8844,
+        alpha: 0.3,
+      });
+      g.roundRect(x + s.cx + 5, y + s.cy + s.ch / 2 + 5, s.cw - 10, s.ch / 2, 3).stroke({
+        color: 0xddaa55,
+        alpha: 0.25,
+        width: 1,
+      });
+      // Tape band
+      g.rect(x + s.cx + 8, y + s.cy + s.ch / 2 - 2, s.cw - 16, 4).fill({
         color: 0xddaa55,
         alpha: 0.2,
       });
@@ -287,21 +296,21 @@ export class MapRenderer {
   }
 
   private drawReactor(g: Graphics, cx: number, cy: number) {
-    cy += 20; // shift down from room label
+    cy += 30; // shift down from room label
     // Outer containment ring
-    g.circle(cx, cy, 50).fill({ color: 0x1a0000, alpha: 0.4 });
-    g.circle(cx, cy, 50).stroke({ color: 0xff2222, alpha: 0.35, width: 2 });
+    g.circle(cx, cy, 40).fill({ color: 0x1a0000, alpha: 0.4 });
+    g.circle(cx, cy, 40).stroke({ color: 0xff2222, alpha: 0.35, width: 2 });
     // Inner core ring
-    g.circle(cx, cy, 28).fill({ color: 0x330000, alpha: 0.5 });
-    g.circle(cx, cy, 28).stroke({ color: 0xff4444, alpha: 0.4, width: 1.5 });
+    g.circle(cx, cy, 22).fill({ color: 0x330000, alpha: 0.5 });
+    g.circle(cx, cy, 22).stroke({ color: 0xff4444, alpha: 0.4, width: 1.5 });
     // Glowing core
-    g.circle(cx, cy, 12).fill({ color: 0xff3300, alpha: 0.6 });
+    g.circle(cx, cy, 10).fill({ color: 0xff3300, alpha: 0.6 });
     // Conduit pipes radiating outward
     for (const angle of [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2]) {
-      const x1 = cx + Math.cos(angle) * 52;
-      const y1 = cy + Math.sin(angle) * 52;
-      const x2 = cx + Math.cos(angle) * 85;
-      const y2 = cy + Math.sin(angle) * 85;
+      const x1 = cx + Math.cos(angle) * 42;
+      const y1 = cy + Math.sin(angle) * 42;
+      const x2 = cx + Math.cos(angle) * 70;
+      const y2 = cy + Math.sin(angle) * 70;
       g.moveTo(x1, y1).lineTo(x2, y2).stroke({ color: 0xff4444, alpha: 0.25, width: 4 });
     }
   }
