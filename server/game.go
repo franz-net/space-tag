@@ -52,18 +52,16 @@ type MapDataPayload struct {
 
 func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role, aiIDs []string) *GameState {
 	positions := make(map[string]Vec2, len(playerIDs))
-	// Spread players in a horizontal grid in the upper area of the spawn
-	// room, so nobody lands inside the table obstacle below.
-	cols := 3
-	spacing := PlayerRadius * 4
-	totalW := float64(cols-1) * spacing
+	// Spread players in a single horizontal row so everyone is at the
+	// same Y and well above the table obstacle.
+	n := len(playerIDs)
+	spacing := PlayerRadius * 3
+	totalW := float64(n-1) * spacing
 	startX := gm.SpawnPos.X - totalW/2
 	for i, id := range playerIDs {
-		col := i % cols
-		row := i / cols
 		positions[id] = Vec2{
-			X: startX + float64(col)*spacing,
-			Y: gm.SpawnPos.Y + float64(row)*spacing,
+			X: startX + float64(i)*spacing,
+			Y: gm.SpawnPos.Y,
 		}
 	}
 
@@ -248,16 +246,14 @@ func (gs *GameState) TeleportToCafeteria() {
 		}
 	}
 
-	cols := 3
-	spacing := PlayerRadius * 4
-	totalW := float64(cols-1) * spacing
+	n := len(alive)
+	spacing := PlayerRadius * 3
+	totalW := float64(n-1) * spacing
 	startX := cx - totalW/2
 	for i, id := range alive {
-		col := i % cols
-		row := i / cols
 		gs.Positions[id] = Vec2{
-			X: startX + float64(col)*spacing,
-			Y: cy + float64(row)*spacing,
+			X: startX + float64(i)*spacing,
+			Y: cy,
 		}
 		gs.MoveInputs[id] = Vec2{}
 	}
