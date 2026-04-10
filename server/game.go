@@ -52,13 +52,18 @@ type MapDataPayload struct {
 
 func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role, aiIDs []string) *GameState {
 	positions := make(map[string]Vec2, len(playerIDs))
-	// Spread players in a circle around spawn so they don't overlap
+	// Spread players in a horizontal grid in the upper area of the spawn
+	// room, so nobody lands inside the table obstacle below.
+	cols := 3
+	spacing := PlayerRadius * 4
+	totalW := float64(cols-1) * spacing
+	startX := gm.SpawnPos.X - totalW/2
 	for i, id := range playerIDs {
-		angle := float64(i) * (2 * 3.14159 / float64(len(playerIDs)))
-		offset := PlayerRadius * 3
+		col := i % cols
+		row := i / cols
 		positions[id] = Vec2{
-			X: gm.SpawnPos.X + math.Cos(angle)*offset,
-			Y: gm.SpawnPos.Y + math.Sin(angle)*offset,
+			X: startX + float64(col)*spacing,
+			Y: gm.SpawnPos.Y + float64(row)*spacing,
 		}
 	}
 
@@ -243,12 +248,16 @@ func (gs *GameState) TeleportToCafeteria() {
 		}
 	}
 
+	cols := 3
+	spacing := PlayerRadius * 4
+	totalW := float64(cols-1) * spacing
+	startX := cx - totalW/2
 	for i, id := range alive {
-		angle := float64(i) * (2 * 3.14159 / float64(len(alive)))
-		offset := PlayerRadius * 4
+		col := i % cols
+		row := i / cols
 		gs.Positions[id] = Vec2{
-			X: cx + math.Cos(angle)*offset,
-			Y: cy + math.Sin(angle)*offset,
+			X: startX + float64(col)*spacing,
+			Y: cy + float64(row)*spacing,
 		}
 		gs.MoveInputs[id] = Vec2{}
 	}
