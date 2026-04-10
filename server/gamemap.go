@@ -94,8 +94,9 @@ func BuildMap() *GameMap {
 		{160, 270, 70, 100},
 		{370, 270, 70, 100},
 
-		// Cafeteria: oval table (bounding box of the ellipse)
-		{1020, 235, 160, 70},
+		// Cafeteria: oval table (bounding box of the ellipse, shifted to
+		// the bottom half of the room so it doesn't overlap the spawn point)
+		{1020, 305, 160, 70},
 
 		// Navigation: console desk
 		{1820, 155, 160, 30},

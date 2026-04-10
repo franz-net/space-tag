@@ -172,9 +172,10 @@ export class MapRenderer {
   }
 
   private drawCafeteria(g: Graphics, cx: number, cy: number) {
-    // Long oval table in the center
-    g.ellipse(cx, cy + 20, 80, 35).fill({ color: 0x8b7355, alpha: 0.4 });
-    g.ellipse(cx, cy + 20, 80, 35).stroke({ color: 0xffffff, alpha: 0.15, width: 1 });
+    // Long oval table — shifted to bottom half of room to avoid spawn point
+    const tableY = cy + 90;
+    g.ellipse(cx, tableY, 80, 35).fill({ color: 0x8b7355, alpha: 0.4 });
+    g.ellipse(cx, tableY, 80, 35).stroke({ color: 0xffffff, alpha: 0.15, width: 1 });
     // Stools around the table
     const stools = [
       [-55, -15],
@@ -185,11 +186,11 @@ export class MapRenderer {
       [0, 70],
     ];
     for (const [sx, sy] of stools) {
-      g.circle(cx + sx, cy + 20 + sy, 8).fill({ color: 0x666666, alpha: 0.35 });
+      g.circle(cx + sx, tableY + sy, 8).fill({ color: 0x666666, alpha: 0.35 });
     }
     // Emergency button (decorative red circle on table)
-    g.circle(cx, cy + 20, 10).fill({ color: 0xff3333, alpha: 0.5 });
-    g.circle(cx, cy + 20, 10).stroke({ color: 0xff0000, alpha: 0.4, width: 1.5 });
+    g.circle(cx, tableY, 10).fill({ color: 0xff3333, alpha: 0.5 });
+    g.circle(cx, tableY, 10).stroke({ color: 0xff0000, alpha: 0.4, width: 1.5 });
   }
 
   private drawNavigation(
