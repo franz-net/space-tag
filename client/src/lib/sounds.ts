@@ -7,16 +7,79 @@
 // - Mute state is persisted in localStorage.
 
 const STORAGE_KEY = "spacetag.muted";
+const MUSIC_KEY = "spacetag.musicMuted";
+
+// Gentle C-major pentatonic arpeggio, looped. Low enough to sit under SFX.
+// 8 notes, played at ~80 BPM (0.75s each) = 6s loop.
+const MUSIC_NOTES = [
+  261.63, // C4
+  329.63, // E4
+  392.0, // G4
+  523.25, // C5
+  440.0, // A4
+  392.0, // G4
+  329.63, // E4
+  293.66, // D4
+];
+const NOTE_INTERVAL = 0.75; // seconds per note
+const NOTE_DURATION = 1.4; // longer than interval → overlap for smooth sustain
+const MUSIC_LOOKAHEAD = 0.2; // how far ahead we schedule
 
 class SoundManager {
   private ctx: AudioContext | null = null;
   private muted = false;
+  private musicMuted = false;
   private masterGain: GainNode | null = null;
+  private musicGain: GainNode | null = null;
+  private unlocked = false;
+
+  // Music scheduler state
+  private musicTimer: number | null = null;
+  private nextNoteTime = 0;
+  private noteIndex = 0;
 
   constructor() {
     if (typeof window !== "undefined") {
       this.muted = localStorage.getItem(STORAGE_KEY) === "1";
+      this.musicMuted = localStorage.getItem(MUSIC_KEY) === "1";
+      this.installUnlockHandler();
     }
+  }
+
+  /**
+   * Attach a one-shot listener that creates and resumes the AudioContext on
+   * the first user interaction anywhere on the page. This is required
+   * because iOS Safari and Chrome refuse to create/resume an AudioContext
+   * outside of a user gesture — and many of our sounds are triggered by
+   * WebSocket messages (freeze, meetingStart, etc.), which are NOT user
+   * gestures. Without this, the first sound call would create a suspended
+   * context that never wakes up, and no audio would play for the rest of
+   * the session.
+   */
+  private installUnlockHandler() {
+    const unlock = () => {
+      const ctx = this.ensureCtx();
+      if (!ctx) return;
+      // Play a one-sample silent buffer to fully unlock iOS audio
+      try {
+        const buf = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+      } catch {
+        // ignore
+      }
+      this.unlocked = true;
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("touchstart", unlock);
+      window.removeEventListener("keydown", unlock);
+      // Kick off background music now that we've got a live context
+      this.startMusic();
+    };
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("touchstart", unlock);
+    window.addEventListener("keydown", unlock);
   }
 
   /** Lazily initialize the AudioContext (must happen on a user gesture) */
@@ -32,13 +95,20 @@ class SoundManager {
         this.masterGain = this.ctx.createGain();
         this.masterGain.gain.value = 0.5;
         this.masterGain.connect(this.ctx.destination);
+        // Separate gain bus for music so the music toggle is independent
+        // from the SFX mute toggle.
+        this.musicGain = this.ctx.createGain();
+        this.musicGain.gain.value = this.musicMuted ? 0 : 0.12;
+        this.musicGain.connect(this.masterGain);
       } catch {
         return null;
       }
     }
-    // Some browsers suspend the context until a user gesture
+    // Some browsers suspend the context until a user gesture. `resume()`
+    // returns a promise but we intentionally don't await — audio will start
+    // playing on the next frame once the context wakes up.
     if (this.ctx.state === "suspended") {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
     return this.ctx;
   }
@@ -53,6 +123,88 @@ class SoundManager {
       localStorage.setItem(STORAGE_KEY, this.muted ? "1" : "0");
     }
     return this.muted;
+  }
+
+  isMusicMuted() {
+    return this.musicMuted;
+  }
+
+  toggleMusic() {
+    this.musicMuted = !this.musicMuted;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(MUSIC_KEY, this.musicMuted ? "1" : "0");
+    }
+    // Smoothly fade the music gain rather than clicking on/off
+    const ctx = this.ctx;
+    if (ctx && this.musicGain) {
+      const target = this.musicMuted ? 0 : 0.12;
+      this.musicGain.gain.cancelScheduledValues(ctx.currentTime);
+      this.musicGain.gain.linearRampToValueAtTime(target, ctx.currentTime + 0.3);
+    }
+    // Make sure the scheduler is running so unmuting actually produces sound
+    if (!this.musicMuted && !this.musicTimer) {
+      this.startMusic();
+    }
+    return this.musicMuted;
+  }
+
+  /** Start the background music scheduler. Safe to call multiple times. */
+  startMusic() {
+    if (this.musicTimer !== null) return;
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    this.nextNoteTime = ctx.currentTime + 0.1;
+    this.noteIndex = 0;
+    this.musicTimer = window.setInterval(() => this.scheduleMusic(), 100);
+  }
+
+  /** Stop the background music scheduler. */
+  stopMusic() {
+    if (this.musicTimer !== null) {
+      clearInterval(this.musicTimer);
+      this.musicTimer = null;
+    }
+  }
+
+  /**
+   * Look-ahead scheduler: schedules notes a short time in advance so timing
+   * is sample-accurate even if the JS timer is jittery.
+   */
+  private scheduleMusic() {
+    const ctx = this.ctx;
+    if (!ctx || !this.musicGain) return;
+    while (this.nextNoteTime < ctx.currentTime + MUSIC_LOOKAHEAD) {
+      this.scheduleNote(MUSIC_NOTES[this.noteIndex], this.nextNoteTime);
+      this.nextNoteTime += NOTE_INTERVAL;
+      this.noteIndex = (this.noteIndex + 1) % MUSIC_NOTES.length;
+    }
+  }
+
+  /** Schedule a single music note (triangle wave + sub-octave for warmth). */
+  private scheduleNote(freq: number, startTime: number) {
+    const ctx = this.ctx;
+    if (!ctx || !this.musicGain) return;
+
+    const makeVoice = (f: number, type: OscillatorType, vol: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f, startTime);
+      // Slow attack + slow release for a soft pad feel
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.exponentialRampToValueAtTime(vol, startTime + 0.15);
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        startTime + NOTE_DURATION
+      );
+      osc.connect(gain);
+      gain.connect(this.musicGain!);
+      osc.start(startTime);
+      osc.stop(startTime + NOTE_DURATION + 0.05);
+    };
+
+    makeVoice(freq, "triangle", 0.5);
+    makeVoice(freq / 2, "sine", 0.3); // sub-octave for warmth
   }
 
   /** Play a single tone with an envelope */

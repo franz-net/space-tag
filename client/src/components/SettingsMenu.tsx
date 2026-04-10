@@ -8,15 +8,22 @@ export default function SettingsMenu() {
   const [open, setOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [musicMuted, setMusicMuted] = useState(false);
 
   useEffect(() => {
     setMuted(sounds.isMuted());
+    setMusicMuted(sounds.isMusicMuted());
   }, []);
 
   const toggleMute = () => {
     const newMuted = sounds.toggleMute();
     setMuted(newMuted);
     if (!newMuted) sounds.click();
+  };
+
+  const toggleMusic = () => {
+    const newMuted = sounds.toggleMusic();
+    setMusicMuted(newMuted);
   };
 
   return (
@@ -49,6 +56,16 @@ export default function SettingsMenu() {
               <span className="flex-1">Sound</span>
               <span className="text-xs text-gray-400">
                 {muted ? "Off" : "On"}
+              </span>
+            </button>
+            <button
+              onClick={toggleMusic}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800 text-white text-sm text-left"
+            >
+              <span className="text-lg">{musicMuted ? "🎵" : "🎶"}</span>
+              <span className="flex-1">Music</span>
+              <span className="text-xs text-gray-400">
+                {musicMuted ? "Off" : "On"}
               </span>
             </button>
             <button
