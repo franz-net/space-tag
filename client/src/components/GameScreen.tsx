@@ -91,7 +91,14 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
         engineRef.current = engine;
       });
 
-    const handleResize = () => {
+    // Resize the renderer whenever the visible viewport changes. We listen
+    // to multiple events because:
+    //   - `resize` covers desktop window resizes and most mobile cases
+    //   - `orientationchange` fires before iOS updates dimensions, so we
+    //     re-resize again on a short delay to catch the new viewport
+    //   - `visualViewport.resize` catches iOS keyboard show/hide and
+    //     pinch-zoom, which `resize` misses on iPad
+    const doResize = () => {
       if (engineRef.current && containerRef.current) {
         engineRef.current.resize(
           containerRef.current.clientWidth,
@@ -99,11 +106,23 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
         );
       }
     };
-    window.addEventListener("resize", handleResize);
+    const handleOrientationChange = () => {
+      // iOS reports the OLD dimensions during orientationchange. Re-resize
+      // a few times after to make sure we land on the correct viewport.
+      doResize();
+      setTimeout(doResize, 100);
+      setTimeout(doResize, 400);
+    };
+    window.addEventListener("resize", doResize);
+    window.addEventListener("orientationchange", handleOrientationChange);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", doResize);
 
     return () => {
       cancelled = true;
-      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("resize", doResize);
+      window.removeEventListener("orientationchange", handleOrientationChange);
+      vv?.removeEventListener("resize", doResize);
       engine.destroy();
       engineRef.current = null;
     };

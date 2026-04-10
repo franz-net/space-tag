@@ -1,6 +1,7 @@
 "use client";
 
 import { useGameStore } from "@/stores/gameStore";
+import { sounds } from "@/lib/sounds";
 import { COLOR_HEX, type MsgType } from "@/lib/protocol";
 
 interface LobbyProps {
@@ -92,7 +93,10 @@ export default function Lobby({ send, connected }: LobbyProps) {
             </button>
           </div>
           <button
-            onClick={() => send("start_game")}
+            onClick={() => {
+              sounds.unlock();
+              send("start_game");
+            }}
             disabled={!canStart}
             className="w-full px-6 py-4 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-xl font-bold text-xl transition-colors"
           >

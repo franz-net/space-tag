@@ -47,39 +47,72 @@ class SoundManager {
   }
 
   /**
-   * Attach a one-shot listener that creates and resumes the AudioContext on
-   * the first user interaction anywhere on the page. This is required
-   * because iOS Safari and Chrome refuse to create/resume an AudioContext
-   * outside of a user gesture — and many of our sounds are triggered by
-   * WebSocket messages (freeze, meetingStart, etc.), which are NOT user
-   * gestures. Without this, the first sound call would create a suspended
-   * context that never wakes up, and no audio would play for the rest of
-   * the session.
+   * Attach listeners that create and resume the AudioContext on any user
+   * interaction. Required because iOS Safari and Chrome refuse to create or
+   * resume an AudioContext outside a user gesture, and many of our sounds
+   * are triggered by WebSocket messages (freeze, meetingStart, etc.) which
+   * are NOT user gestures.
+   *
+   * Subtlety: `ctx.resume()` is async. The listener stays attached until
+   * the context reports `state === 'running'`, so a failed first attempt
+   * (e.g. iPad Safari refusing a `pointerdown` for some reason) doesn't
+   * leave us deaf for the whole session. Once running, we start music and
+   * remove the listeners.
    */
   private installUnlockHandler() {
-    const unlock = () => {
-      const ctx = this.ensureCtx();
-      if (!ctx) return;
-      // Play a one-sample silent buffer to fully unlock iOS audio
-      try {
-        const buf = ctx.createBuffer(1, 1, 22050);
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        src.connect(ctx.destination);
-        src.start(0);
-      } catch {
-        // ignore
+    const EVENTS = ["pointerdown", "touchstart", "touchend", "click", "keydown"];
+    const cleanup = () => {
+      for (const ev of EVENTS) {
+        window.removeEventListener(ev, unlock);
       }
-      this.unlocked = true;
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("touchstart", unlock);
-      window.removeEventListener("keydown", unlock);
-      // Kick off background music now that we've got a live context
-      this.startMusic();
     };
-    window.addEventListener("pointerdown", unlock);
-    window.addEventListener("touchstart", unlock);
-    window.addEventListener("keydown", unlock);
+    const unlock = () => {
+      this.unlock();
+      // Only tear down once the context actually transitions to running.
+      // If resume() hasn't resolved yet, wait for it here via statechange.
+      if (this.ctx && this.ctx.state === "running") {
+        cleanup();
+        if (!this.musicTimer) this.startMusic();
+      }
+    };
+    for (const ev of EVENTS) {
+      window.addEventListener(ev, unlock);
+    }
+  }
+
+  /**
+   * Public unlock — safe to call from any confirmed user-gesture handler.
+   * Creates the AudioContext (if needed), resumes it, and plays a silent
+   * buffer to fully unlock iOS audio. Idempotent.
+   */
+  unlock() {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    // Play a one-sample silent buffer to fully unlock iOS audio. Must be
+    // called synchronously inside the gesture callback.
+    try {
+      const buf = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(0);
+    } catch {
+      // ignore
+    }
+    // Listen for the state transition to fire music exactly once.
+    if (!this.unlocked) {
+      const onState = () => {
+        if (ctx.state === "running") {
+          this.unlocked = true;
+          if (!this.musicTimer) this.startMusic();
+          ctx.removeEventListener("statechange", onState);
+        }
+      };
+      ctx.addEventListener("statechange", onState);
+      // If it's already running (desktop Chrome with autoplay allowed),
+      // fire immediately.
+      if (ctx.state === "running") onState();
+    }
   }
 
   /** Lazily initialize the AudioContext (must happen on a user gesture) */

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useGameStore } from "@/stores/gameStore";
+import { sounds } from "@/lib/sounds";
 import HowToPlay from "./HowToPlay";
 import MuteButton from "./MuteButton";
 import type { MsgType } from "@/lib/protocol";
@@ -18,6 +19,9 @@ export default function HomeScreen({ send, connected }: HomeScreenProps) {
     useGameStore();
 
   const handleCreate = () => {
+    // Unlock audio synchronously inside this gesture callback — iOS Safari
+    // is strict about which call stack creates the AudioContext.
+    sounds.unlock();
     if (!playerName.trim()) {
       setError("Please enter your name!");
       return;
@@ -27,6 +31,7 @@ export default function HomeScreen({ send, connected }: HomeScreenProps) {
   };
 
   const handleJoin = () => {
+    sounds.unlock();
     if (!playerName.trim()) {
       setError("Please enter your name!");
       return;
