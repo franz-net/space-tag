@@ -124,7 +124,7 @@ func BuildMap() *GameMap {
 		Hallways:  hallways,
 		Walls:     nil,
 		Obstacles: obstacles,
-		SpawnPos:  Vec2{1100, 170}, // cafeteria upper area (below label, above table)
+		SpawnPos:  Vec2{1100, 140}, // cafeteria upper area (below label, well above table at y:240)
 		Width:     2200,
 		Height:    1300,
 	}
