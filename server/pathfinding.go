@@ -20,13 +20,20 @@ import "math"
 //  10 hallway medbay <-> engine
 //  11 hallway cafeteria <-> storage
 //  12 hallway navigation <-> reactor
+// Room waypoints are placed in open areas away from obstacles:
+//   Medbay beds:     {150,170,60,70} and {390,170,60,70} — waypoint below beds
+//   Cafeteria table: {1040,265,120,40} — waypoint above table
+//   Navigation desk: {1820,160,160,25} — waypoint below desk
+//   Engine turbines: {170,1040,60,60} and {330,1040,60,60} — waypoint above
+//   Storage crates:  {960,980,80,70} and {1120,1080,80,70} — waypoint above
+//   Reactor core:    {1860,1030,80,80} — waypoint above
 var DefaultWaypoints = []Vec2{
-	{300, 250},   // 0 medbay
-	{1100, 250},  // 1 cafeteria
-	{1900, 250},  // 2 navigation
-	{300, 1050},  // 3 engine
-	{1100, 1050}, // 4 storage
-	{1900, 1050}, // 5 reactor
+	{300, 300},   // 0 medbay — below the beds (y:170-240)
+	{1100, 200},  // 1 cafeteria — above the table (y:265)
+	{1900, 300},  // 2 navigation — below the desk (y:160-185)
+	{300, 960},   // 3 engine — above the turbines (y:1040)
+	{1100, 960},  // 4 storage — above the crates (y:980)
+	{1900, 960},  // 5 reactor — above the core (y:1030)
 	{700, 250},   // 6 hall medbay-caf
 	{1500, 250},  // 7 hall caf-nav
 	{700, 1050},  // 8 hall engine-sto
