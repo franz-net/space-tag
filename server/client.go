@@ -100,6 +100,8 @@ func (c *Client) handleMessage(raw []byte) {
 		c.handleLeaveRoom()
 	case MsgStartGame:
 		c.handleStartGame()
+	case MsgRoomSettings:
+		c.handleRoomSettings(env.Payload)
 	case MsgAddAI:
 		c.handleAddAI()
 	case MsgRemoveAI:
@@ -288,6 +290,62 @@ func (c *Client) handleStartGame() {
 	room.Game.mu.Lock()
 	room.Game.TagCooldown = time.Now().Add(10 * time.Second)
 	room.Game.mu.Unlock()
+}
+
+func (c *Client) handleRoomSettings(payload json.RawMessage) {
+	room := c.getRoom()
+	if room == nil {
+		return
+	}
+
+	room.mu.RLock()
+	isHost := room.HostID == c.id
+	phase := room.Phase
+	room.mu.RUnlock()
+
+	if !isHost {
+		c.sendEnvelope(MsgError, ErrorPayload{Message: "Only the host can change settings"})
+		return
+	}
+	if phase != PhaseLobby {
+		return
+	}
+
+	var s RoomSettings
+	if err := json.Unmarshal(payload, &s); err != nil {
+		return
+	}
+
+	// Clamp values to allowed ranges
+	if s.TasksPerPlayer < 2 {
+		s.TasksPerPlayer = 2
+	} else if s.TasksPerPlayer > 6 {
+		s.TasksPerPlayer = 6
+	}
+	if s.DiscussionTime < 15 {
+		s.DiscussionTime = 15
+	} else if s.DiscussionTime > 60 {
+		s.DiscussionTime = 60
+	}
+	if s.VotingTime < 10 {
+		s.VotingTime = 10
+	} else if s.VotingTime > 30 {
+		s.VotingTime = 30
+	}
+	if s.TagCooldown < 10 {
+		s.TagCooldown = 10
+	} else if s.TagCooldown > 45 {
+		s.TagCooldown = 45
+	}
+
+	room.mu.Lock()
+	room.Settings = s
+	room.mu.Unlock()
+
+	// Broadcast updated room state so everyone sees the new settings
+	for _, pid := range room.snapshotPlayerIDs() {
+		room.sendTo(pid, MsgRoomState, room.roomStatePayload(pid))
+	}
 }
 
 func (c *Client) handleAddAI() {
@@ -730,9 +788,12 @@ func (c *Client) handleTagPlayer(payload json.RawMessage) {
 	})
 	dbg("broadcasted player_frozen")
 
-	// Send cooldown to tagger
+	// Send cooldown to tagger (using room settings)
+	room.Game.mu.RLock()
+	tagCD := room.Game.Settings.TagCooldown
+	room.Game.mu.RUnlock()
 	c.sendEnvelope(MsgCooldown, CooldownPayload{
-		Seconds: TagCooldown.Seconds(),
+		Seconds: tagCD,
 	})
 
 	// Check win conditions
@@ -856,21 +917,27 @@ func startMeeting(room *Room, callerID, reason, bodyID string) {
 	room.Phase = PhaseVoting
 	room.mu.Unlock()
 
+	// Use room settings for meeting durations
+	game.mu.RLock()
+	discTime := game.Settings.DiscussionTime
+	voteTime := game.Settings.VotingTime
+	game.mu.RUnlock()
+
 	// Notify all players
 	room.broadcast(MsgMeetingStart, MeetingStartPayload{
 		CallerID:       callerID,
 		Reason:         reason,
 		BodyID:         bodyID,
-		DiscussionTime: DiscussionDuration.Seconds(),
-		VotingTime:     VotingDuration.Seconds(),
+		DiscussionTime: discTime,
+		VotingTime:     voteTime,
 		AlivePlayers:   alive,
 	})
 
 	// Run timeline in a goroutine
-	go runMeetingTimeline(room, meeting)
+	go runMeetingTimeline(room, meeting, discTime, voteTime)
 }
 
-func runMeetingTimeline(room *Room, meeting *Meeting) {
+func runMeetingTimeline(room *Room, meeting *Meeting, discTime, voteTime float64) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("meeting timeline panic in room %s: %v", room.Code, r)
@@ -878,11 +945,11 @@ func runMeetingTimeline(room *Room, meeting *Meeting) {
 	}()
 
 	// Discussion phase
-	time.Sleep(DiscussionDuration)
+	time.Sleep(time.Duration(discTime) * time.Second)
 	meeting.SetPhase("voting")
 
 	// Voting phase
-	time.Sleep(VotingDuration)
+	time.Sleep(time.Duration(voteTime) * time.Second)
 
 	// Tally
 	ejectedID := meeting.TallyVotes()

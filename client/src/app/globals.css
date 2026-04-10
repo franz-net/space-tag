@@ -63,3 +63,8 @@ body {
 .animate-float-away {
   animation: float-away 2.4s ease-in forwards;
 }
+
+/* Lights Out vignette — radial gradient darkening edges */
+.bg-gradient-radial {
+  background: radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0.85) 100%);
+}

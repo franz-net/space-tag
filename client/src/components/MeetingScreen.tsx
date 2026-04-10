@@ -262,7 +262,7 @@ export default function MeetingScreen({ send }: Props) {
         </div>
       </div>
 
-      {/* Quick chat messages */}
+      {/* Quick chat messages — grouped by category */}
       {isAlive && (
         <div className="max-w-2xl mx-auto w-full mt-2">
           <div className="flex items-center justify-center gap-2 mb-2">
@@ -275,22 +275,40 @@ export default function MeetingScreen({ send }: Props) {
               ({myMessagesLeft} left)
             </span>
           </div>
-          <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-            {QUICK_MESSAGES.map((msg) => (
-              <button
-                key={msg.id}
-                onClick={() => handleSendMessage(msg.id)}
-                disabled={myMessagesLeft === 0}
-                className="flex flex-col items-center gap-1 p-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                title={msg.text}
-              >
-                <span className="text-2xl">{msg.icon}</span>
-                <span className="text-[10px] text-gray-400 text-center leading-tight">
-                  {msg.text}
-                </span>
-              </button>
-            ))}
-          </div>
+          {(["accuse", "location", "defend", "info", "vote"] as const).map((cat) => {
+            const msgs = QUICK_MESSAGES.filter((m) => m.category === cat);
+            if (msgs.length === 0) return null;
+            const labels: Record<string, string> = {
+              accuse: "Who?",
+              location: "Where?",
+              defend: "Defend",
+              info: "Info",
+              vote: "Vote",
+            };
+            return (
+              <div key={cat} className="mb-2">
+                <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1 ml-1">
+                  {labels[cat]}
+                </p>
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+                  {msgs.map((msg) => (
+                    <button
+                      key={msg.id}
+                      onClick={() => handleSendMessage(msg.id)}
+                      disabled={myMessagesLeft === 0}
+                      className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title={msg.text}
+                    >
+                      <span className="text-xl">{msg.icon}</span>
+                      <span className="text-[9px] text-gray-400 text-center leading-tight">
+                        {msg.text}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

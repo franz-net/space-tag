@@ -2,7 +2,7 @@
 
 import { useGameStore } from "@/stores/gameStore";
 import { sounds } from "@/lib/sounds";
-import { COLOR_HEX, type MsgType } from "@/lib/protocol";
+import { COLOR_HEX, type MsgType, type RoomSettings } from "@/lib/protocol";
 
 interface LobbyProps {
   send: (type: MsgType, payload?: unknown) => void;
@@ -10,11 +10,16 @@ interface LobbyProps {
 }
 
 export default function Lobby({ send, connected }: LobbyProps) {
-  const { roomCode, players, hostId, myId, leaveRoom } = useGameStore();
+  const { roomCode, players, hostId, myId, leaveRoom, settings } =
+    useGameStore();
   const isHost = myId === hostId;
   const canStart = players.length >= 2;
   const aiCount = players.filter((p) => p.isAI).length;
   const canAddAI = players.length < 6;
+
+  const updateSetting = (key: keyof RoomSettings, value: number) => {
+    send("room_settings", { ...settings, [key]: value });
+  };
 
   return (
     <div className="flex flex-col items-center gap-8 p-8">
@@ -104,6 +109,52 @@ export default function Lobby({ send, connected }: LobbyProps) {
           </button>
         </div>
       )}
+
+      {/* Game Settings */}
+      <div className="w-full max-w-md">
+        <h2 className="text-lg font-semibold text-white mb-3 text-center">
+          Game Settings
+        </h2>
+        <div className="grid grid-cols-2 gap-3">
+          {([
+            { key: "tasksPerPlayer" as const, label: "Tasks", min: 2, max: 6, step: 1 },
+            { key: "discussionTime" as const, label: "Discuss (s)", min: 15, max: 60, step: 5 },
+            { key: "votingTime" as const, label: "Vote (s)", min: 10, max: 30, step: 5 },
+            { key: "tagCooldown" as const, label: "Tag CD (s)", min: 10, max: 45, step: 5 },
+          ]).map((opt) => (
+            <div key={opt.key} className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-2">
+              <span className="text-gray-300 text-sm">{opt.label}</span>
+              {isHost ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      updateSetting(opt.key, Math.max(opt.min, settings[opt.key] - opt.step))
+                    }
+                    className="w-7 h-7 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold"
+                  >
+                    -
+                  </button>
+                  <span className="text-white font-bold text-sm w-6 text-center">
+                    {settings[opt.key]}
+                  </span>
+                  <button
+                    onClick={() =>
+                      updateSetting(opt.key, Math.min(opt.max, settings[opt.key] + opt.step))
+                    }
+                    className="w-7 h-7 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold"
+                  >
+                    +
+                  </button>
+                </div>
+              ) : (
+                <span className="text-white font-bold text-sm">
+                  {settings[opt.key]}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
 
       {!isHost && (
         <p className="text-gray-400 text-lg">

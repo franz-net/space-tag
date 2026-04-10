@@ -18,7 +18,7 @@ interface GameScreenProps {
 }
 
 export default function GameScreen({ send, positionsRef }: GameScreenProps) {
-  const { myId, mapData, myTasks, gameOver, myRole, meeting } =
+  const { myId, mapData, myTasks, gameOver, myRole, meeting, activeSabotage } =
     useGameStore();
   const isTouch = useIsTouch();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -226,6 +226,17 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
       )}
 
       <canvas ref={canvasRef} className="w-full h-full block" />
+
+      {/* Sabotage visual effects */}
+      {activeSabotage === "lights_out" && (
+        <div className="absolute inset-0 pointer-events-none z-[5] bg-gradient-radial from-transparent via-black/30 to-black/70" />
+      )}
+      {activeSabotage === "comms_down" && (
+        <div className="absolute inset-0 pointer-events-none z-[5] opacity-10 animate-pulse bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzg4OCIgZmlsbC1vcGFjaXR5PSIwLjMiLz48cmVjdCB4PSI1MCIgd2lkdGg9IjIiIGhlaWdodD0iMTAwIiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMiIvPjxyZWN0IHk9IjMwIiB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xNSIvPjwvc3ZnPg==')]" />
+      )}
+      {activeSabotage === "meltdown" && (
+        <div className="absolute inset-0 pointer-events-none z-[5] bg-red-900/15 animate-pulse" />
+      )}
 
       <TaskOverlay send={send} />
       {showCountdown && !meeting && !gameOver && (

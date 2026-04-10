@@ -18,15 +18,33 @@ const (
 
 const MaxPlayers = 6
 
+// RoomSettings holds configurable game settings the host can change in the lobby.
+type RoomSettings struct {
+	TasksPerPlayer int     `json:"tasksPerPlayer"` // 2-6, default 4
+	DiscussionTime float64 `json:"discussionTime"` // seconds, 15-60, default 30
+	VotingTime     float64 `json:"votingTime"`     // seconds, 10-30, default 20
+	TagCooldown    float64 `json:"tagCooldown"`    // seconds, 10-45, default 25
+}
+
+func DefaultSettings() RoomSettings {
+	return RoomSettings{
+		TasksPerPlayer: 4,
+		DiscussionTime: 30,
+		VotingTime:     20,
+		TagCooldown:    25,
+	}
+}
+
 type Room struct {
-	Code    string
-	Phase   RoomPhase
-	Players map[string]*Player // playerID -> Player
-	Order   []string           // insertion order of player IDs
-	Clients map[string]*Client // playerID -> WS Client (nil for AI)
-	HostID  string
-	Game    *GameState         // nil when in lobby
-	mu      sync.RWMutex
+	Code     string
+	Phase    RoomPhase
+	Players  map[string]*Player // playerID -> Player
+	Order    []string           // insertion order of player IDs
+	Clients  map[string]*Client // playerID -> WS Client (nil for AI)
+	HostID   string
+	Settings RoomSettings       // configurable game settings
+	Game     *GameState         // nil when in lobby
+	mu       sync.RWMutex
 }
 
 var (
@@ -79,12 +97,13 @@ func createRoom(host *Client, name string) *Room {
 	}
 
 	room := &Room{
-		Code:    code,
-		Phase:   PhaseLobby,
-		Players: map[string]*Player{host.id: player},
-		Order:   []string{host.id},
-		Clients: map[string]*Client{host.id: host},
-		HostID:  host.id,
+		Code:     code,
+		Phase:    PhaseLobby,
+		Players:  map[string]*Player{host.id: player},
+		Order:    []string{host.id},
+		Clients:  map[string]*Client{host.id: host},
+		HostID:   host.id,
+		Settings: DefaultSettings(),
 	}
 
 	roomsMu.Lock()
@@ -269,11 +288,12 @@ func (r *Room) playerList() []Player {
 
 func (r *Room) roomStatePayload(forPlayerID string) RoomStatePayload {
 	return RoomStatePayload{
-		Code:    r.Code,
-		State:   r.Phase,
-		Players: r.playerList(),
-		HostID:  r.HostID,
-		You:     forPlayerID,
+		Code:     r.Code,
+		State:    r.Phase,
+		Players:  r.playerList(),
+		HostID:   r.HostID,
+		You:      forPlayerID,
+		Settings: r.Settings,
 	}
 }
 
@@ -330,6 +350,7 @@ func (r *Room) startGame() {
 	r.mu.Lock()
 
 	r.Phase = PhasePlaying
+	settings := r.Settings
 
 	// Collect all player IDs
 	ids := make([]string, 0, len(r.Order))
@@ -360,9 +381,9 @@ func (r *Room) startGame() {
 		}
 	}
 
-	// Initialize game state
+	// Initialize game state using room settings
 	gm := BuildMap()
-	r.Game = NewGameState(gm, ids, roles, aiIDs)
+	r.Game = NewGameState(gm, ids, roles, aiIDs, settings)
 	r.Game.Room = r // back-pointer for AI tick callbacks
 
 	r.mu.Unlock()

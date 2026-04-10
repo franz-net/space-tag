@@ -536,9 +536,12 @@ func aiMeetingTick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 
 // pickAIChatMessage returns a quick message ID for the AI to send
 func pickAIChatMessage(ai *AIBrain) string {
-	// Crewmate AI: defends or asks where
-	// Tagger AI: blends in with defense
-	options := []string{"doing_task", "where", "idk", "trust_me", "with_me"}
+	// Mix of defense, info, and location messages
+	options := []string{
+		"doing_task", "where", "idk", "trust_me", "with_me",
+		"loc_cafeteria", "loc_medbay", "loc_navigation",
+		"loc_engine", "loc_storage", "loc_reactor",
+	}
 	return options[rand.Intn(len(options))]
 }
 

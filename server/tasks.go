@@ -58,11 +58,10 @@ func buildTaskStations() []TaskStation {
 	}
 }
 
-const TasksPerPlayer = 4
 const TaskInteractionRange = 60.0
 
 // InitTasks creates task state and assigns tasks to crewmates
-func InitTasks(playerIDs []string, roles map[string]Role) *TasksState {
+func InitTasks(playerIDs []string, roles map[string]Role, tasksPerPlayer int) *TasksState {
 	stations := buildTaskStations()
 
 	assignments := make(map[string][]TaskAssignment)
@@ -71,9 +70,8 @@ func InitTasks(playerIDs []string, roles map[string]Role) *TasksState {
 	for _, pid := range playerIDs {
 		role := roles[pid]
 
-		// Randomly pick TasksPerPlayer stations for this player
 		perm := rand.Perm(len(stations))
-		count := TasksPerPlayer
+		count := tasksPerPlayer
 		if count > len(stations) {
 			count = len(stations)
 		}

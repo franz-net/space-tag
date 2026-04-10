@@ -28,6 +28,7 @@ export type MsgType =
   | "vote_cast"
   | "meeting_end"
   | "cooldown"
+  | "room_settings"
   | "sabotage"
   | "sabotage_start"
   | "sabotage_end"
@@ -58,12 +59,20 @@ export interface Player {
   isAlive: boolean;
 }
 
+export interface RoomSettings {
+  tasksPerPlayer: number;
+  discussionTime: number;
+  votingTime: number;
+  tagCooldown: number;
+}
+
 export interface RoomStatePayload {
   code: string;
   state: "lobby" | "playing" | "voting" | "ended";
   players: Player[];
   hostId: string;
   you: string;
+  settings: RoomSettings;
 }
 
 export interface GameStartedPayload {
@@ -182,11 +191,11 @@ export interface QuickMessage {
   id: string;
   icon: string;
   text: string;
-  category: "accuse" | "defend" | "info" | "vote";
+  category: "accuse" | "defend" | "info" | "location" | "vote";
 }
 
 export const QUICK_MESSAGES: QuickMessage[] = [
-  // Accusations
+  // Accusations — answer "Who?"
   { id: "sus_red", icon: "🔴", text: "Red is sus", category: "accuse" },
   { id: "sus_blue", icon: "🔵", text: "Blue is sus", category: "accuse" },
   { id: "sus_green", icon: "🟢", text: "Green is sus", category: "accuse" },
@@ -202,6 +211,13 @@ export const QUICK_MESSAGES: QuickMessage[] = [
   { id: "i_saw", icon: "👁️", text: "I saw something", category: "info" },
   { id: "where", icon: "❓", text: "Where?", category: "info" },
   { id: "idk", icon: "🤷", text: "I don't know", category: "info" },
+  // Locations — answer "Where?"
+  { id: "loc_cafeteria", icon: "🍽️", text: "Cafeteria", category: "location" },
+  { id: "loc_medbay", icon: "🏥", text: "Medbay", category: "location" },
+  { id: "loc_navigation", icon: "🧭", text: "Navigation", category: "location" },
+  { id: "loc_engine", icon: "⚙️", text: "Engine", category: "location" },
+  { id: "loc_storage", icon: "📦", text: "Storage", category: "location" },
+  { id: "loc_reactor", icon: "☢️", text: "Reactor", category: "location" },
   // Vote
   { id: "vote_skip", icon: "⏭️", text: "Skip vote", category: "vote" },
 ];

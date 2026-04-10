@@ -324,8 +324,8 @@ export default function HUD({
           </button>
         )}
 
-        {/* USE button (crewmate near task) */}
-        {myRole === "crewmate" && !isFrozen && (
+        {/* USE button (crewmate near task — ghosts can still do tasks!) */}
+        {myRole === "crewmate" && (
           <button
             onClick={handleUse}
             disabled={!nearTaskId}

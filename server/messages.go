@@ -34,6 +34,7 @@ const (
 	MsgVoteCast     MsgType = "vote_cast"
 	MsgMeetingEnd   MsgType = "meeting_end"
 	MsgCooldown       MsgType = "cooldown"
+	MsgRoomSettings   MsgType = "room_settings"   // client→server: host updates settings
 	MsgSabotage       MsgType = "sabotage"       // client→server: tagger activates
 	MsgSabotageStart  MsgType = "sabotage_start"  // server→all: sabotage began
 	MsgSabotageEnd    MsgType = "sabotage_end"    // server→all: sabotage cleared
@@ -55,11 +56,12 @@ type JoinRoomPayload struct {
 }
 
 type RoomStatePayload struct {
-	Code    string    `json:"code"`
-	State   RoomPhase `json:"state"`
-	Players []Player  `json:"players"`
-	HostID  string    `json:"hostId"`
-	You     string    `json:"you"`
+	Code     string       `json:"code"`
+	State    RoomPhase    `json:"state"`
+	Players  []Player     `json:"players"`
+	HostID   string       `json:"hostId"`
+	You      string       `json:"you"`
+	Settings RoomSettings `json:"settings"`
 }
 
 type GameStartedPayload struct {

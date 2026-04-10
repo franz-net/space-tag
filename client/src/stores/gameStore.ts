@@ -3,6 +3,7 @@ import type {
   Player,
   Role,
   RoomStatePayload,
+  RoomSettings,
   MapDataPayload,
   PlayerTaskInfo,
   TaskDataPayload,
@@ -31,6 +32,7 @@ interface GameState {
   players: Player[];
   hostId: string | null;
   myId: string | null;
+  settings: RoomSettings;
 
   // Game
   myRole: Role | null;
@@ -98,8 +100,16 @@ interface GameState {
 }
 
 export const useGameStore = create<GameState>((set) => ({
-  playerName: "",
-  setPlayerName: (name) => set({ playerName: name }),
+  playerName:
+    typeof window !== "undefined"
+      ? localStorage.getItem("spacetag.name") ?? ""
+      : "",
+  setPlayerName: (name) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("spacetag.name", name);
+    }
+    set({ playerName: name });
+  },
 
   screen: "home",
 
@@ -108,6 +118,7 @@ export const useGameStore = create<GameState>((set) => ({
   players: [],
   hostId: null,
   myId: null,
+  settings: { tasksPerPlayer: 4, discussionTime: 30, votingTime: 20, tagCooldown: 25 },
 
   myRole: null,
   mapData: null,
@@ -169,6 +180,7 @@ export const useGameStore = create<GameState>((set) => ({
       players: payload.players,
       hostId: payload.hostId,
       myId: payload.you,
+      settings: payload.settings,
       // Only auto-transition to lobby on initial join (from home).
       // Don't yank players out of game/gameover when room_state arrives mid-game.
       screen: state.screen === "home" ? "lobby" : state.screen,
