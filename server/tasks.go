@@ -47,9 +47,9 @@ func buildTaskStations() []TaskStation {
 		{ID: "task-4", Type: TaskConnectWires, RoomID: "cafeteria", Position: Vec2{1200, 250}},
 		// Navigation (x:1700-2100, y:100-400)
 		{ID: "task-5", Type: TaskTapTargets, RoomID: "navigation", Position: Vec2{1900, 250}},
-		// Engine (x:100-500, y:900-1200)
-		{ID: "task-6", Type: TaskConnectWires, RoomID: "engine", Position: Vec2{200, 1050}},
-		{ID: "task-7", Type: TaskSimonSays, RoomID: "engine", Position: Vec2{400, 1050}},
+		// Engine (x:100-500, y:900-1200) — tasks above the turbines
+		{ID: "task-6", Type: TaskConnectWires, RoomID: "engine", Position: Vec2{200, 960}},
+		{ID: "task-7", Type: TaskSimonSays, RoomID: "engine", Position: Vec2{400, 960}},
 		// Storage (x:900-1300, y:900-1200)
 		{ID: "task-8", Type: TaskMatchColors, RoomID: "storage", Position: Vec2{1100, 1050}},
 		// Reactor (x:1700-2100, y:900-1200)
