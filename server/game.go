@@ -232,7 +232,8 @@ func (gs *GameState) TeleportToCafeteria() {
 	}
 
 	cx := caf.Bounds.X + caf.Bounds.W/2
-	cy := caf.Bounds.Y + caf.Bounds.H/2
+	// Use the same Y as spawn (upper area of cafeteria, above the table)
+	cy := caf.Bounds.Y + 80
 
 	// Spread alive players in a circle
 	alive := []string{}

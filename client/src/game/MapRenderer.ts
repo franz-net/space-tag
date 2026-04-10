@@ -171,8 +171,8 @@ export class MapRenderer {
   }
 
   private drawCafeteria(g: Graphics, cx: number, cy: number) {
-    // Oval table — centered in room, narrow to leave side passages
-    const tableY = cy - 10;
+    // Oval table — below center, between spawn area and bottom hallway
+    const tableY = cy + 15;
     g.ellipse(cx, tableY, 60, 25).fill(0x6b5335);
     g.ellipse(cx, tableY, 60, 25).stroke({ color: 0x8b7355, width: 2 });
     // Stools around the table

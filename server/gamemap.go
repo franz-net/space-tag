@@ -100,9 +100,9 @@ func BuildMap() *GameMap {
 		{150, 170, 60, 70},
 		{390, 170, 60, 70},
 
-		// Cafeteria: table in center (narrow enough to leave side passages,
-		// and above the bottom hallway entrance at y:340)
-		{1040, 240, 120, 50},
+		// Cafeteria: table below center (clear of spawn circle above and
+		// hallway entrance at y:340 below)
+		{1040, 265, 120, 40},
 
 		// Navigation: console desk at top
 		{1820, 160, 160, 25},
@@ -124,7 +124,7 @@ func BuildMap() *GameMap {
 		Hallways:  hallways,
 		Walls:     nil,
 		Obstacles: obstacles,
-		SpawnPos:  Vec2{1100, 140}, // cafeteria upper area (below label, well above table at y:240)
+		SpawnPos:  Vec2{1100, 180}, // spawn circle (r=48) → y:132-228, above table at y:265
 		Width:     2200,
 		Height:    1300,
 	}
