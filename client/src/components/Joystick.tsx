@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
+import { useIsTouch } from "@/hooks/useIsTouch";
 
 const OUTER_RADIUS = 60;
 const INNER_RADIUS = 28;
@@ -14,6 +15,7 @@ export default function Joystick({ onMove }: Props) {
   const outerRef = useRef<HTMLDivElement>(null);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const [active, setActive] = useState(false);
+  const isTouch = useIsTouch();
 
   const updateFromPointer = useCallback(
     (clientX: number, clientY: number) => {
@@ -70,11 +72,15 @@ export default function Joystick({ onMove }: Props) {
     };
   }, [active, handlePointerMove, handlePointerUp]);
 
+  // Only show the on-screen joystick for touch devices (phones, iPads).
+  // Desktops with a mouse/keyboard use WASD/arrow keys instead.
+  if (!isTouch) return null;
+
   return (
     <div
       ref={outerRef}
       onPointerDown={handlePointerDown}
-      className="md:hidden absolute bottom-6 left-6 z-20 rounded-full bg-white/10 backdrop-blur border-2 border-white/30 touch-none select-none"
+      className="absolute bottom-6 left-6 z-20 rounded-full bg-white/10 backdrop-blur border-2 border-white/30 touch-none select-none"
       style={{ width: OUTER_RADIUS * 2, height: OUTER_RADIUS * 2 }}
     >
       <div
