@@ -22,6 +22,7 @@ import type {
   VoteCastPayload,
   MeetingEndPayload,
   CooldownPayload,
+  SabotageStartPayload,
   ErrorPayload,
 } from "@/lib/protocol";
 
@@ -41,6 +42,8 @@ export default function Home() {
     recordVoteCast,
     endMeeting,
     clearMeeting,
+    setSabotage,
+    clearSabotage,
     setError,
   } = useGameStore();
 
@@ -139,6 +142,21 @@ export default function Home() {
           setGameOver(go);
           break;
         }
+        case "sabotage_start": {
+          const s = payload as SabotageStartPayload;
+          if (s.type === "meltdown") {
+            sounds.meltdownAlarm();
+          } else {
+            sounds.sabotageStart();
+          }
+          setSabotage(s);
+          break;
+        }
+        case "sabotage_end": {
+          sounds.sabotageEnd();
+          clearSabotage();
+          break;
+        }
         case "error": {
           setError((payload as ErrorPayload).message);
           break;
@@ -159,6 +177,8 @@ export default function Home() {
       recordVoteCast,
       endMeeting,
       clearMeeting,
+      setSabotage,
+      clearSabotage,
       setError,
     ]
   );

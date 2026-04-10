@@ -28,6 +28,10 @@ export type MsgType =
   | "vote_cast"
   | "meeting_end"
   | "cooldown"
+  | "sabotage"
+  | "sabotage_start"
+  | "sabotage_end"
+  | "sabotage_fix"
   | "error";
 
 export interface Envelope {
@@ -75,6 +79,8 @@ export interface PositionsPayload {
   positions: Record<string, { x: number; y: number }>;
   frozen: string[];
   bodies: Record<string, { x: number; y: number }>;
+  sabotage: string; // "" or "lights_out" | "comms_down" | "meltdown"
+  meltdownTimer: number; // seconds remaining (0 if not meltdown)
 }
 
 export interface MapDataPayload {
@@ -154,6 +160,21 @@ export interface MeetingEndPayload {
 
 export interface CooldownPayload {
   seconds: number;
+}
+
+// Sabotage types
+export type SabotageType = "lights_out" | "comms_down" | "meltdown";
+
+export interface FixStation {
+  id: string;
+  roomId: string;
+  position: { x: number; y: number };
+}
+
+export interface SabotageStartPayload {
+  type: SabotageType;
+  duration: number;
+  stations: FixStation[];
 }
 
 // Pre-defined chat messages with display info

@@ -24,6 +24,7 @@ const (
 	GoalHunt
 	GoalFakeTask
 	GoalReportBody
+	GoalFixSabotage
 )
 
 type AIBrain struct {
@@ -202,8 +203,27 @@ func aiPickGoal(gs *GameState, ai *AIBrain, pos Vec2) {
 		return
 	}
 
+	now := time.Now()
+
 	if ai.Role == RoleCrewmate {
-		// Find an uncompleted task and go to it
+		// Priority 1: fix active sabotage (50% chance to volunteer)
+		if gs.Sabotage.Active != "" && rand.Float64() < 0.5 {
+			stations := SabotageFixStations[gs.Sabotage.Active]
+			if len(stations) > 0 {
+				// For meltdown, pick a random station; for others, there's only one
+				station := stations[rand.Intn(len(stations))]
+				// Don't go to an already-fixed meltdown station
+				if gs.Sabotage.Active != SabotageMeltdown || !gs.Sabotage.MeltdownFixed[station.ID] {
+					ai.Goal = GoalFixSabotage
+					ai.GoalTarget = station.ID
+					ai.Path = FindPath(pos, station.Position)
+					ai.PathIdx = 0
+					return
+				}
+			}
+		}
+
+		// Priority 2: Find an uncompleted task and go to it
 		assignments := gs.Tasks.Assignments[ai.PlayerID]
 		for _, a := range assignments {
 			if !a.Completed {
@@ -220,7 +240,22 @@ func aiPickGoal(gs *GameState, ai *AIBrain, pos Vec2) {
 		// All tasks done — wander
 		aiWander(ai, pos)
 	} else {
-		// Tagger: 50/50 fake a task or wander toward a player
+		// Tagger: try to trigger sabotage if conditions allow
+		if gs.Sabotage.Active == "" && now.After(gs.SabotageCooldown) {
+			chance := 0.15
+			// Meltdown is rarer and only if not already used
+			if !gs.Sabotage.UsedMeltdown && rand.Float64() < 0.05 {
+				aiTriggerSabotage(gs, gs.Room, ai, SabotageMeltdown, now)
+				return
+			}
+			if rand.Float64() < chance {
+				types := []SabotageType{SabotageLightsOut, SabotageCommsDown}
+				aiTriggerSabotage(gs, gs.Room, ai, types[rand.Intn(2)], now)
+				return
+			}
+		}
+
+		// 50/50 fake a task or wander toward a player
 		if rand.Float64() < 0.5 {
 			// Fake task: walk to a station
 			assignments := gs.Tasks.Assignments[ai.PlayerID]
@@ -241,6 +276,45 @@ func aiPickGoal(gs *GameState, ai *AIBrain, pos Vec2) {
 	}
 }
 
+// aiTriggerSabotage activates a sabotage from AI tagger (lock is held)
+func aiTriggerSabotage(gs *GameState, room *Room, ai *AIBrain, sabType SabotageType, now time.Time) {
+	// Apply sabotage directly (lock is held)
+	switch sabType {
+	case SabotageLightsOut, SabotageCommsDown:
+		gs.Sabotage.Active = sabType
+		gs.Sabotage.ExpiresAt = now.Add(SabotageDuration)
+		gs.SabotageCooldown = now.Add(SabotageCooldown)
+	case SabotageMeltdown:
+		if gs.Sabotage.UsedMeltdown {
+			return
+		}
+		gs.Sabotage.Active = sabType
+		gs.Sabotage.ExpiresAt = now.Add(MeltdownDuration)
+		gs.Sabotage.UsedMeltdown = true
+		gs.Sabotage.MeltdownFixed = make(map[string]bool)
+	}
+
+	dbg("AI tagger %s triggered %s", ai.PlayerID, sabType)
+
+	duration := SabotageDuration.Seconds()
+	if sabType == SabotageMeltdown {
+		duration = MeltdownDuration.Seconds()
+	}
+
+	go func(r *Room) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("ai sabotage broadcast panic: %v", rec)
+			}
+		}()
+		r.broadcast(MsgSabotageStart, SabotageStartPayload{
+			Type:     sabType,
+			Duration: duration,
+			Stations: SabotageFixStations[sabType],
+		})
+	}(room)
+}
+
 // aiOnArrive handles what happens when AI reaches its destination
 func aiOnArrive(gs *GameState, ai *AIBrain, now time.Time) {
 	switch ai.Goal {
@@ -255,6 +329,49 @@ func aiOnArrive(gs *GameState, ai *AIBrain, now time.Time) {
 		}
 	case GoalHunt:
 		// Just arrived near a target; tagger logic will handle the freeze
+		ai.Goal = GoalIdle
+	case GoalFixSabotage:
+		// AI crewmate arrived at fix station — fix it directly (lock is held)
+		stationID := ai.GoalTarget
+		if gs.Sabotage.Active != "" {
+			stations := SabotageFixStations[gs.Sabotage.Active]
+			var station *FixStation
+			for i := range stations {
+				if stations[i].ID == stationID {
+					station = &stations[i]
+					break
+				}
+			}
+			if station != nil {
+				// Range check
+				pos := gs.Positions[ai.PlayerID]
+				dx := pos.X - station.Position.X
+				dy := pos.Y - station.Position.Y
+				if dx*dx+dy*dy <= SabotageFixRange*SabotageFixRange {
+					allFixed := false
+					if gs.Sabotage.Active == SabotageMeltdown {
+						gs.Sabotage.MeltdownFixed[stationID] = true
+						if len(gs.Sabotage.MeltdownFixed) >= 2 {
+							gs.Sabotage.Active = ""
+							allFixed = true
+						}
+					} else {
+						gs.Sabotage.Active = ""
+						allFixed = true
+					}
+					if allFixed {
+						go func(r *Room) {
+							defer func() {
+								if rec := recover(); rec != nil {
+									log.Printf("ai fix sabotage broadcast panic: %v", rec)
+								}
+							}()
+							r.broadcast(MsgSabotageEnd, SabotageEndPayload{})
+						}(gs.Room)
+					}
+				}
+			}
+		}
 		ai.Goal = GoalIdle
 	default:
 		ai.Goal = GoalIdle

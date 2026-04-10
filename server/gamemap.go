@@ -26,12 +26,13 @@ type Hallway struct {
 }
 
 type GameMap struct {
-	Rooms    []MapRoom `json:"rooms"`
-	Hallways []Hallway `json:"hallways"`
-	Walls    []Rect    `json:"walls"`
-	SpawnPos Vec2      `json:"spawnPos"`
-	Width    float64   `json:"width"`
-	Height   float64   `json:"height"`
+	Rooms     []MapRoom `json:"rooms"`
+	Hallways  []Hallway `json:"hallways"`
+	Walls     []Rect    `json:"walls"`
+	Obstacles []Rect    `json:"obstacles"` // furniture/props that block movement
+	SpawnPos  Vec2      `json:"spawnPos"`
+	Width     float64   `json:"width"`
+	Height    float64   `json:"height"`
 }
 
 // BuildMap creates the spaceship map with 6 rooms connected by hallways.
@@ -86,31 +87,72 @@ func BuildMap() *GameMap {
 		{Bounds: Rect{1800, 340, 100, 620}},
 	}
 
+	// Obstacles — collision boxes matching the visual props drawn in
+	// MapRenderer.ts. Players cannot walk through furniture.
+	obstacles := []Rect{
+		// Medbay: two hospital beds
+		{160, 270, 70, 100},
+		{370, 270, 70, 100},
+
+		// Cafeteria: oval table (bounding box of the ellipse)
+		{1020, 235, 160, 70},
+
+		// Navigation: console desk
+		{1820, 155, 160, 30},
+
+		// Engine: two turbines (square bounding boxes for the circles)
+		{160, 1030, 80, 80},
+		{360, 1030, 80, 80},
+
+		// Storage: two crate stacks
+		{950, 970, 110, 90},
+		{1140, 1070, 115, 90},
+
+		// Reactor: containment core
+		{1850, 1020, 100, 100},
+	}
+
 	gm := &GameMap{
-		Rooms:    rooms,
-		Hallways: hallways,
-		Walls:    nil,
-		SpawnPos: Vec2{1100, 250}, // cafeteria center
-		Width:    2200,
-		Height:   1300,
+		Rooms:     rooms,
+		Hallways:  hallways,
+		Walls:     nil,
+		Obstacles: obstacles,
+		SpawnPos:  Vec2{1100, 250}, // cafeteria center
+		Width:     2200,
+		Height:    1300,
 	}
 
 	return gm
 }
 
-// IsWalkable checks if a circle at pos with given radius is fully inside any room or hallway
+// IsWalkable checks if a circle at pos with given radius is fully inside any
+// room or hallway AND does not overlap any obstacle (furniture/props).
 func (gm *GameMap) IsWalkable(pos Vec2, radius float64) bool {
+	inBounds := false
 	for _, r := range gm.Rooms {
 		if circleInRect(pos, radius, r.Bounds) {
-			return true
+			inBounds = true
+			break
 		}
 	}
-	for _, h := range gm.Hallways {
-		if circleInRect(pos, radius, h.Bounds) {
-			return true
+	if !inBounds {
+		for _, h := range gm.Hallways {
+			if circleInRect(pos, radius, h.Bounds) {
+				inBounds = true
+				break
+			}
 		}
 	}
-	return false
+	if !inBounds {
+		return false
+	}
+	// Reject if overlapping any obstacle
+	for _, obs := range gm.Obstacles {
+		if circleOverlapsRect(pos, radius, obs) {
+			return false
+		}
+	}
+	return true
 }
 
 // GetRoomAt returns the room ID the position is in, or "" if in a hallway

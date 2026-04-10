@@ -37,9 +37,12 @@ export class Engine {
   nearTaskId: string | null = null;
   nearTagTargetId: string | null = null;
   nearBodyId: string | null = null;
+  nearFixStationId: string | null = null;
   inCafeteria = false;
   private frozenIds: Set<string> = new Set();
   private myRole: "crewmate" | "tagger" | null = null;
+  private activeSabotage: string | null = null;
+  private fixPositions: { id: string; x: number; y: number }[] = [];
 
   constructor(onMove: (dx: number, dy: number) => void) {
     this.app = new Application();
@@ -202,6 +205,17 @@ export class Engine {
         this.nearBodyId = this.findNearbyBody(localPos.x, localPos.y, 90);
       }
 
+      // Near a sabotage fix station? (crewmates only)
+      if (this.activeSabotage && this.myRole === "crewmate") {
+        this.nearFixStationId = this.findNearbyFixStation(
+          localPos.x,
+          localPos.y,
+          70
+        );
+      } else {
+        this.nearFixStationId = null;
+      }
+
       // In cafeteria? (for emergency button)
       this.inCafeteria = this.isInCafeteria(localPos.x, localPos.y);
     }
@@ -225,6 +239,22 @@ export class Engine {
       }
     }
     return nearestId;
+  }
+
+  private findNearbyFixStation(
+    x: number,
+    y: number,
+    range: number
+  ): string | null {
+    const rangeSq = range * range;
+    for (const station of this.fixPositions) {
+      const dx = x - station.x;
+      const dy = y - station.y;
+      if (dx * dx + dy * dy <= rangeSq) {
+        return station.id;
+      }
+    }
+    return null;
   }
 
   private isInCafeteria(x: number, y: number): boolean {
@@ -289,6 +319,19 @@ export class Engine {
 
   setMyRole(role: "crewmate" | "tagger") {
     this.myRole = role;
+  }
+
+  setSabotage(
+    type: string | null,
+    fixPositions?: { id: string; x: number; y: number }[]
+  ) {
+    this.activeSabotage = type;
+    if (fixPositions) this.fixPositions = fixPositions;
+    else if (!type) this.fixPositions = [];
+    // Toggle fog of war vision radius
+    if (this.fogOfWar) {
+      this.fogOfWar.reducedVision = type === "lights_out";
+    }
   }
 
   resize(width: number, height: number) {

@@ -16,6 +16,18 @@ func circleInRect(center Vec2, radius float64, r Rect) bool {
 		center.Y+radius <= r.Y+r.H
 }
 
+// circleOverlapsRect returns true if a circle touches or overlaps a rectangle.
+// Used for obstacle collision — if the player circle overlaps any obstacle,
+// the position is blocked.
+func circleOverlapsRect(center Vec2, radius float64, r Rect) bool {
+	// Find the closest point on the rectangle to the circle center
+	closestX := math.Max(r.X, math.Min(center.X, r.X+r.W))
+	closestY := math.Max(r.Y, math.Min(center.Y, r.Y+r.H))
+	dx := center.X - closestX
+	dy := center.Y - closestY
+	return dx*dx+dy*dy <= radius*radius
+}
+
 // ResolveMovement tries to move from `from` by `delta`, checking walkability.
 // Uses slide-along-wall approach: try full move, then X-only, then Y-only.
 func ResolveMovement(gm *GameMap, from Vec2, dx, dy float64) Vec2 {

@@ -398,6 +398,27 @@ class SoundManager {
     this.tone({ freq: 200, duration: 0.15, type: "sawtooth", volume: 0.25 });
     this.noise({ duration: 0.2, volume: 0.12, filterFreq: 2000 });
   }
+
+  /** Minor sabotage start — ominous low sweep + static */
+  sabotageStart() {
+    this.tone({ freq: 400, sweepTo: 150, duration: 0.5, type: "sawtooth", volume: 0.2 });
+    this.noise({ duration: 0.4, volume: 0.15, filterFreq: 2000 });
+  }
+
+  /** Sabotage fixed — ascending relief chime */
+  sabotageEnd() {
+    this.tone({ freq: 330, duration: 0.15, type: "triangle", volume: 0.25 });
+    this.tone({ freq: 440, duration: 0.15, type: "triangle", volume: 0.25, delay: 0.12 });
+    this.tone({ freq: 660, duration: 0.25, type: "triangle", volume: 0.3, delay: 0.24 });
+  }
+
+  /** Meltdown alarm — urgent pulsing tone */
+  meltdownAlarm() {
+    for (let i = 0; i < 4; i++) {
+      this.tone({ freq: 600, duration: 0.12, type: "square", volume: 0.2, delay: i * 0.25 });
+      this.tone({ freq: 400, duration: 0.12, type: "square", volume: 0.2, delay: i * 0.25 + 0.12 });
+    }
+  }
 }
 
 export const sounds = new SoundManager();

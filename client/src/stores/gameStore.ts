@@ -10,6 +10,9 @@ import type {
   MeetingStartPayload,
   ChatMessagePayload,
   MeetingEndPayload,
+  SabotageStartPayload,
+  SabotageType,
+  FixStation,
 } from "@/lib/protocol";
 
 export type Screen = "home" | "lobby" | "game";
@@ -43,6 +46,14 @@ interface GameState {
   tagCooldownEnd: number; // timestamp when cooldown ends
   usedEmergency: boolean;
 
+  // Sabotage
+  activeSabotage: SabotageType | null;
+  sabotageStations: FixStation[];
+  sabotageEnd: number; // timestamp when sabotage expires
+  sabotageCooldownEnd: number;
+  meltdownUsed: boolean;
+  meltdownTimer: number; // seconds remaining (from server)
+
   // Meeting
   meeting: MeetingStartPayload | null;
   meetingPhase: "discussion" | "voting" | null;
@@ -58,6 +69,12 @@ interface GameState {
   // Error
   error: string | null;
   clearError: () => void;
+
+  // Sabotage actions
+  setSabotage: (payload: SabotageStartPayload) => void;
+  clearSabotage: () => void;
+  setSabotageCooldown: (seconds: number) => void;
+  setMeltdownTimer: (seconds: number) => void;
 
   // Actions
   setRoomState: (payload: RoomStatePayload) => void;
@@ -103,6 +120,13 @@ export const useGameStore = create<GameState>((set) => ({
   tagCooldownEnd: 0,
   usedEmergency: false,
 
+  activeSabotage: null,
+  sabotageStations: [],
+  sabotageEnd: 0,
+  sabotageCooldownEnd: 0,
+  meltdownUsed: false,
+  meltdownTimer: 0,
+
   meeting: null,
   meetingPhase: null,
   meetingPhaseEnd: 0,
@@ -115,6 +139,28 @@ export const useGameStore = create<GameState>((set) => ({
 
   error: null,
   clearError: () => set({ error: null }),
+
+  setSabotage: (payload) =>
+    set({
+      activeSabotage: payload.type,
+      sabotageStations: payload.stations,
+      sabotageEnd: Date.now() + payload.duration * 1000,
+      meltdownUsed:
+        payload.type === "meltdown" ? true : useGameStore.getState().meltdownUsed,
+    }),
+
+  clearSabotage: () =>
+    set({
+      activeSabotage: null,
+      sabotageStations: [],
+      sabotageEnd: 0,
+      meltdownTimer: 0,
+    }),
+
+  setSabotageCooldown: (seconds) =>
+    set({ sabotageCooldownEnd: Date.now() + seconds * 1000 }),
+
+  setMeltdownTimer: (seconds) => set({ meltdownTimer: seconds }),
 
   setRoomState: (payload) =>
     set((state) => ({
@@ -151,6 +197,12 @@ export const useGameStore = create<GameState>((set) => ({
       frozenIds: new Set(),
       tagCooldownEnd: 0,
       usedEmergency: false,
+      activeSabotage: null,
+      sabotageStations: [],
+      sabotageEnd: 0,
+      sabotageCooldownEnd: 0,
+      meltdownUsed: false,
+      meltdownTimer: 0,
       meeting: null,
       meetingPhase: null,
       meetingPhaseEnd: 0,
@@ -233,6 +285,12 @@ export const useGameStore = create<GameState>((set) => ({
       frozenIds: new Set(),
       tagCooldownEnd: 0,
       usedEmergency: false,
+      activeSabotage: null,
+      sabotageStations: [],
+      sabotageEnd: 0,
+      sabotageCooldownEnd: 0,
+      meltdownUsed: false,
+      meltdownTimer: 0,
       meeting: null,
       meetingPhase: null,
       chatMessages: [],

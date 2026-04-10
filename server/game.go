@@ -24,15 +24,19 @@ type GameState struct {
 	Meeting     *Meeting           // current meeting, nil if none
 	AIBrains    map[string]*AIBrain // playerID -> AI brain (only for AI players)
 	Room        *Room              // back-pointer for AI tick callbacks
+	Sabotage         *SabotageState // current sabotage state
+	SabotageCooldown time.Time     // earliest time tagger can sabotage again
 	mu          sync.RWMutex
 	stopCh      chan struct{}
 }
 
 // PositionsPayload is sent to all clients each tick
 type PositionsPayload struct {
-	Positions map[string]Vec2 `json:"positions"`
-	Frozen    []string        `json:"frozen"` // playerIDs that are frozen (ghosts)
-	Bodies    map[string]Vec2 `json:"bodies"` // bodyID -> body position (visible to everyone)
+	Positions     map[string]Vec2 `json:"positions"`
+	Frozen        []string        `json:"frozen"`              // playerIDs that are frozen (ghosts)
+	Bodies        map[string]Vec2 `json:"bodies"`              // bodyID -> body position (visible to everyone)
+	Sabotage      string          `json:"sabotage"`            // "" or active sabotage type
+	MeltdownTimer float64         `json:"meltdownTimer"`       // seconds remaining (0 if not meltdown)
 }
 
 // MovePayload is sent from client to server
@@ -66,17 +70,19 @@ func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role, aiIDs 
 	}
 
 	return &GameState{
-		Map:           gm,
-		Positions:     positions,
-		MoveInputs:    make(map[string]Vec2),
-		Tasks:         tasks,
-		Roles:         roles,
-		Frozen:        make(map[string]bool),
-		BodyPos:       make(map[string]Vec2),
-		BodyReported:  make(map[string]bool),
-		UsedEmergency: make(map[string]bool),
-		AIBrains:      brains,
-		stopCh:        make(chan struct{}),
+		Map:              gm,
+		Positions:        positions,
+		MoveInputs:       make(map[string]Vec2),
+		Tasks:            tasks,
+		Roles:            roles,
+		Frozen:           make(map[string]bool),
+		BodyPos:          make(map[string]Vec2),
+		BodyReported:     make(map[string]bool),
+		UsedEmergency:    make(map[string]bool),
+		AIBrains:         brains,
+		Sabotage:         NewSabotageState(),
+		SabotageCooldown: time.Now(),
+		stopCh:           make(chan struct{}),
 	}
 }
 
@@ -247,6 +253,115 @@ func (gs *GameState) TeleportToCafeteria() {
 	}
 }
 
+// TrySabotage activates a sabotage. Returns true on success.
+// Caller must NOT hold gs.mu.
+func (gs *GameState) TrySabotage(selfID string, sabType SabotageType, now time.Time) bool {
+	gs.mu.Lock()
+	defer gs.mu.Unlock()
+
+	// Must be alive tagger
+	if gs.Roles[selfID] != RoleTagger || gs.Frozen[selfID] {
+		return false
+	}
+	// No sabotage during meetings
+	if gs.Meeting != nil {
+		return false
+	}
+	// No sabotage if one is already active
+	if gs.Sabotage.Active != "" {
+		return false
+	}
+	// Validate type
+	switch sabType {
+	case SabotageLightsOut, SabotageCommsDown:
+		if now.Before(gs.SabotageCooldown) {
+			return false
+		}
+		gs.Sabotage.Active = sabType
+		gs.Sabotage.ExpiresAt = now.Add(SabotageDuration)
+		gs.SabotageCooldown = now.Add(SabotageCooldown)
+	case SabotageMeltdown:
+		if gs.Sabotage.UsedMeltdown {
+			return false
+		}
+		gs.Sabotage.Active = sabType
+		gs.Sabotage.ExpiresAt = now.Add(MeltdownDuration)
+		gs.Sabotage.UsedMeltdown = true
+		gs.Sabotage.MeltdownFixed = make(map[string]bool)
+	default:
+		return false
+	}
+
+	return true
+}
+
+// TryFixSabotage attempts to fix the active sabotage at the given station.
+// Returns (allFixed, ok). For meltdown, allFixed=true only when both stations are done.
+// Caller must NOT hold gs.mu.
+func (gs *GameState) TryFixSabotage(playerID, stationID string) (allFixed bool, ok bool) {
+	gs.mu.Lock()
+	defer gs.mu.Unlock()
+
+	// Must be alive crewmate (tagger can't fix)
+	if gs.Roles[playerID] == RoleTagger || gs.Frozen[playerID] {
+		return false, false
+	}
+	// Must have an active sabotage
+	if gs.Sabotage.Active == "" {
+		return false, false
+	}
+	// Validate this station is a valid fix station for the active sabotage
+	stations := SabotageFixStations[gs.Sabotage.Active]
+	var station *FixStation
+	for i := range stations {
+		if stations[i].ID == stationID {
+			station = &stations[i]
+			break
+		}
+	}
+	if station == nil {
+		return false, false
+	}
+	// Range check
+	pos := gs.Positions[playerID]
+	dx := pos.X - station.Position.X
+	dy := pos.Y - station.Position.Y
+	if dx*dx+dy*dy > SabotageFixRange*SabotageFixRange {
+		return false, false
+	}
+
+	if gs.Sabotage.Active == SabotageMeltdown {
+		gs.Sabotage.MeltdownFixed[stationID] = true
+		// Both stations must be fixed
+		if len(gs.Sabotage.MeltdownFixed) >= 2 {
+			gs.Sabotage.Active = ""
+			return true, true
+		}
+		return false, true // partial fix
+	}
+
+	// lights_out / comms_down — single station fix
+	gs.Sabotage.Active = ""
+	return true, true
+}
+
+// GetSabotageInfo returns the active sabotage type and meltdown remaining time.
+func (gs *GameState) GetSabotageInfo() (string, float64) {
+	gs.mu.RLock()
+	defer gs.mu.RUnlock()
+	if gs.Sabotage.Active == "" {
+		return "", 0
+	}
+	remaining := 0.0
+	if gs.Sabotage.Active == SabotageMeltdown {
+		remaining = time.Until(gs.Sabotage.ExpiresAt).Seconds()
+		if remaining < 0 {
+			remaining = 0
+		}
+	}
+	return string(gs.Sabotage.Active), remaining
+}
+
 func (gs *GameState) SetInput(playerID string, dx, dy float64) {
 	gs.mu.Lock()
 	defer gs.mu.Unlock()
@@ -262,6 +377,24 @@ func (gs *GameState) Tick(dt float64) {
 	now := time.Now()
 	for _, ai := range gs.AIBrains {
 		AITick(gs, gs.Room, ai, now)
+	}
+
+	// Check sabotage expiration (runs even during meetings)
+	if gs.Sabotage.Active != "" && now.After(gs.Sabotage.ExpiresAt) {
+		if gs.Sabotage.Active == SabotageMeltdown {
+			// Meltdown expired — tagger wins! Freeze all crew.
+			go func(r *Room) {
+				r.broadcast(MsgSabotageEnd, SabotageEndPayload{})
+				endGame(r, "tagger")
+			}(gs.Room)
+			gs.Sabotage.Active = ""
+		} else {
+			// Minor sabotage expired naturally
+			gs.Sabotage.Active = ""
+			go func(r *Room) {
+				r.broadcast(MsgSabotageEnd, SabotageEndPayload{})
+			}(gs.Room)
+		}
 	}
 
 	// Don't move anyone during a meeting
@@ -426,10 +559,13 @@ func RunGameLoop(room *Room, gs *GameState) {
 		positions := gs.GetPositions()
 		frozen := gs.GetFrozenList()
 		bodies := gs.GetBodies()
+		sabotage, meltdownTimer := gs.GetSabotageInfo()
 		room.broadcast(MsgPositions, PositionsPayload{
-			Positions: positions,
-			Frozen:    frozen,
-			Bodies:    bodies,
+			Positions:     positions,
+			Frozen:        frozen,
+			Bodies:        bodies,
+			Sabotage:      sabotage,
+			MeltdownTimer: meltdownTimer,
 		})
 	}
 

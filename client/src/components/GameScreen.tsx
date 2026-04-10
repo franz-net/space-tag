@@ -27,6 +27,7 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
   const [nearTaskId, setNearTaskId] = useState<string | null>(null);
   const [nearTagTargetId, setNearTagTargetId] = useState<string | null>(null);
   const [nearBodyId, setNearBodyId] = useState<string | null>(null);
+  const [nearFixStationId, setNearFixStationId] = useState<string | null>(null);
   const [inCafeteria, setInCafeteria] = useState(false);
   // Show 3-2-1 countdown once at the start of each game (resets when
   // mapData clears on returnToLobby).
@@ -163,6 +164,20 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
           engineRef.current.setFrozen(
             new Set(positionsRef.current.frozen || [])
           );
+          // Sync sabotage state from positions payload to engine + store
+          const sabType = positionsRef.current.sabotage || null;
+          const store = useGameStore.getState();
+          const fixPositions = store.sabotageStations.map((s) => ({
+            id: s.id,
+            x: s.position.x,
+            y: s.position.y,
+          }));
+          engineRef.current.setSabotage(sabType, fixPositions);
+          // Sync meltdown timer
+          if (sabType === "meltdown") {
+            store.setMeltdownTimer(positionsRef.current.meltdownTimer);
+          }
+
           // Sync to store too (for HUD) only when the set actually changes
           const currentFrozen = useGameStore.getState().frozenIds;
           const newFrozen = positionsRef.current.frozen || [];
@@ -177,6 +192,7 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
           setNearTaskId(engineRef.current.nearTaskId);
           setNearTagTargetId(engineRef.current.nearTagTargetId);
           setNearBodyId(engineRef.current.nearBodyId);
+          setNearFixStationId(engineRef.current.nearFixStationId);
           setInCafeteria(engineRef.current.inCafeteria);
         }
       } catch (err) {
@@ -195,6 +211,7 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
         nearTaskId={nearTaskId}
         nearTagTargetId={nearTagTargetId}
         nearBodyId={nearBodyId}
+        nearFixStationId={nearFixStationId}
         inCafeteria={inCafeteria}
       />
 

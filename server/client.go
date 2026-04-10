@@ -120,6 +120,10 @@ func (c *Client) handleMessage(raw []byte) {
 		c.handleChatMessage(env.Payload)
 	case MsgCastVote:
 		c.handleCastVote(env.Payload)
+	case MsgSabotage:
+		c.handleSabotage(env.Payload)
+	case MsgSabotageFix:
+		c.handleSabotageFix(env.Payload)
 	default:
 		log.Printf("unknown message type from %s: %s", c.id, env.Type)
 	}
@@ -629,6 +633,66 @@ func generateTaskParams(taskType TaskType) interface{} {
 	return nil
 }
 
+// ===== Sabotage handlers =====
+
+func (c *Client) handleSabotage(payload json.RawMessage) {
+	room := c.getRoom()
+	if room == nil || room.Game == nil {
+		return
+	}
+
+	var p SabotagePayload
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return
+	}
+
+	now := time.Now()
+	if !room.Game.TrySabotage(c.id, p.Type, now) {
+		c.sendEnvelope(MsgError, ErrorPayload{Message: "Cannot sabotage right now"})
+		return
+	}
+
+	// Calculate duration for the client
+	duration := SabotageDuration.Seconds()
+	if p.Type == SabotageMeltdown {
+		duration = MeltdownDuration.Seconds()
+	}
+
+	room.broadcast(MsgSabotageStart, SabotageStartPayload{
+		Type:     p.Type,
+		Duration: duration,
+		Stations: SabotageFixStations[p.Type],
+	})
+
+	// Send sabotage cooldown to tagger (not for meltdown since it's once per game)
+	if p.Type != SabotageMeltdown {
+		c.sendEnvelope(MsgCooldown, CooldownPayload{Seconds: SabotageCooldown.Seconds()})
+	}
+}
+
+func (c *Client) handleSabotageFix(payload json.RawMessage) {
+	room := c.getRoom()
+	if room == nil || room.Game == nil {
+		return
+	}
+
+	var p SabotageFixPayload
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return
+	}
+
+	allFixed, ok := room.Game.TryFixSabotage(c.id, p.StationID)
+	if !ok {
+		return
+	}
+
+	if allFixed {
+		room.broadcast(MsgSabotageEnd, SabotageEndPayload{})
+	}
+	// For meltdown partial fix, we don't broadcast end yet — the positions
+	// payload's meltdownTimer keeps ticking until both are done.
+}
+
 // ===== Tagger / voting handlers =====
 
 func (c *Client) getRoom() *Room {
@@ -694,6 +758,15 @@ func (c *Client) handleReportBody() {
 func (c *Client) handleEmergency() {
 	room := c.getRoom()
 	if room == nil || room.Game == nil {
+		return
+	}
+
+	// Block emergency during active sabotage
+	room.Game.mu.RLock()
+	sabActive := room.Game.Sabotage.Active != ""
+	room.Game.mu.RUnlock()
+	if sabActive {
+		c.sendEnvelope(MsgError, ErrorPayload{Message: "Fix the sabotage first!"})
 		return
 	}
 

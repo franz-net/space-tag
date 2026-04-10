@@ -33,7 +33,11 @@ const (
 	MsgCastVote     MsgType = "cast_vote"
 	MsgVoteCast     MsgType = "vote_cast"
 	MsgMeetingEnd   MsgType = "meeting_end"
-	MsgCooldown     MsgType = "cooldown"
+	MsgCooldown       MsgType = "cooldown"
+	MsgSabotage       MsgType = "sabotage"       // client→server: tagger activates
+	MsgSabotageStart  MsgType = "sabotage_start"  // server→all: sabotage began
+	MsgSabotageEnd    MsgType = "sabotage_end"    // server→all: sabotage cleared
+	MsgSabotageFix    MsgType = "sabotage_fix"    // client→server: crewmate fixes
 )
 
 type Envelope struct {
