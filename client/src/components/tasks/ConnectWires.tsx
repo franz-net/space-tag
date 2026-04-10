@@ -27,13 +27,13 @@ export default function ConnectWires({ params, onComplete }: Props) {
   // Each entry maps left index → right index when connected
   const [connections, setConnections] = useState<Record<number, number>>({});
   const [dragging, setDragging] = useState<{
-    leftIndex: number;
+    side: "left" | "right";
+    index: number;
     color: string;
     start: Point;
     current: Point;
   } | null>(null);
 
-  // Get center of an element relative to the container
   const getCenter = useCallback((el: HTMLElement | null): Point | null => {
     if (!el || !containerRef.current) return null;
     const elRect = el.getBoundingClientRect();
@@ -44,16 +44,30 @@ export default function ConnectWires({ params, onComplete }: Props) {
     };
   }, []);
 
-  const handlePointerDown = (e: React.PointerEvent, leftIndex: number) => {
-    if (connections[leftIndex] !== undefined) return;
+  const isLeftConnected = (i: number) => connections[i] !== undefined;
+  const isRightConnected = (i: number) =>
+    Object.values(connections).includes(i);
+
+  const handlePointerDown = (
+    e: React.PointerEvent,
+    side: "left" | "right",
+    index: number
+  ) => {
+    // Don't start drag if already connected
+    if (side === "left" && isLeftConnected(index)) return;
+    if (side === "right" && isRightConnected(index)) return;
     e.preventDefault();
-    const start = getCenter(leftRefs.current[leftIndex]);
+
+    const refs = side === "left" ? leftRefs : rightRefs;
+    const start = getCenter(refs.current[index]);
     if (!start || !containerRef.current) return;
 
+    const colors = side === "left" ? params.leftColors : params.rightColors;
     const containerRect = containerRef.current.getBoundingClientRect();
     setDragging({
-      leftIndex,
-      color: params.leftColors[leftIndex],
+      side,
+      index,
+      color: colors[index],
       start,
       current: {
         x: e.clientX - containerRect.left,
@@ -81,10 +95,16 @@ export default function ConnectWires({ params, onComplete }: Props) {
     (e: PointerEvent) => {
       if (!dragging) return;
 
-      // Find which right socket the pointer is over
+      // Check the OPPOSITE side for a drop target
+      const targetSide = dragging.side === "left" ? "right" : "left";
+      const targetRefs =
+        targetSide === "left" ? leftRefs : rightRefs;
+      const targetColors =
+        targetSide === "left" ? params.leftColors : params.rightColors;
+
       let droppedOn: number | null = null;
-      for (let i = 0; i < rightRefs.current.length; i++) {
-        const el = rightRefs.current[i];
+      for (let i = 0; i < targetRefs.current.length; i++) {
+        const el = targetRefs.current[i];
         if (!el) continue;
         const r = el.getBoundingClientRect();
         if (
@@ -98,29 +118,32 @@ export default function ConnectWires({ params, onComplete }: Props) {
         }
       }
 
-      // Only connect if matching color and not already taken
-      if (
-        droppedOn !== null &&
-        params.rightColors[droppedOn] === dragging.color &&
-        !Object.values(connections).includes(droppedOn)
-      ) {
-        const newConnections = {
-          ...connections,
-          [dragging.leftIndex]: droppedOn,
-        };
-        setConnections(newConnections);
+      if (droppedOn !== null && targetColors[droppedOn] === dragging.color) {
+        // Determine left/right indices regardless of drag direction
+        const leftIdx =
+          dragging.side === "left" ? dragging.index : droppedOn;
+        const rightIdx =
+          dragging.side === "left" ? droppedOn : dragging.index;
 
-        if (Object.keys(newConnections).length === params.leftColors.length) {
-          setTimeout(onComplete, 400);
+        // Only connect if neither side is already taken
+        if (!isLeftConnected(leftIdx) && !isRightConnected(rightIdx)) {
+          const newConnections = { ...connections, [leftIdx]: rightIdx };
+          setConnections(newConnections);
+
+          if (
+            Object.keys(newConnections).length === params.leftColors.length
+          ) {
+            setTimeout(onComplete, 400);
+          }
         }
       }
 
       setDragging(null);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dragging, connections, params, onComplete]
   );
 
-  // Attach global pointer move/up listeners while dragging
   useEffect(() => {
     if (!dragging) return;
     window.addEventListener("pointermove", handlePointerMove);
@@ -131,8 +154,13 @@ export default function ConnectWires({ params, onComplete }: Props) {
     };
   }, [dragging, handlePointerMove, handlePointerUp]);
 
-  // Recompute completed connection lines on each render so they follow the actual element positions
-  const completedLines: { x1: number; y1: number; x2: number; y2: number; color: string }[] = [];
+  const completedLines: {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    color: string;
+  }[] = [];
   for (const [leftIdxStr, rightIdx] of Object.entries(connections)) {
     const leftIdx = Number(leftIdxStr);
     const a = getCenter(leftRefs.current[leftIdx]);
@@ -165,9 +193,9 @@ export default function ConnectWires({ params, onComplete }: Props) {
               ref={(el) => {
                 leftRefs.current[i] = el;
               }}
-              onPointerDown={(e) => handlePointerDown(e, i)}
+              onPointerDown={(e) => handlePointerDown(e, "left", i)}
               className={`w-14 h-10 rounded-lg cursor-grab active:cursor-grabbing transition-all ${
-                connections[i] !== undefined ? "opacity-50" : "hover:scale-105"
+                isLeftConnected(i) ? "opacity-50" : "hover:scale-105"
               }`}
               style={{ backgroundColor: WIRE_COLORS[color] }}
             />
@@ -182,8 +210,9 @@ export default function ConnectWires({ params, onComplete }: Props) {
               ref={(el) => {
                 rightRefs.current[i] = el;
               }}
-              className={`w-14 h-10 rounded-lg transition-all ${
-                Object.values(connections).includes(i) ? "opacity-50" : ""
+              onPointerDown={(e) => handlePointerDown(e, "right", i)}
+              className={`w-14 h-10 rounded-lg cursor-grab active:cursor-grabbing transition-all ${
+                isRightConnected(i) ? "opacity-50" : "hover:scale-105"
               }`}
               style={{ backgroundColor: WIRE_COLORS[color] }}
             />
