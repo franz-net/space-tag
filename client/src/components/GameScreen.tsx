@@ -186,6 +186,10 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
             newFrozen.some((id) => !currentFrozen.has(id))
           ) {
             useGameStore.getState().setFrozen(newFrozen);
+            // Close active task if the local player just got frozen
+            if (myId && newFrozen.includes(myId) && !currentFrozen.has(myId)) {
+              useGameStore.getState().setActiveTask(null);
+            }
           }
         }
         if (engineRef.current) {
