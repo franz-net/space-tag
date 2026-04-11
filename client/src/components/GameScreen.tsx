@@ -10,6 +10,7 @@ import MeetingScreen from "./MeetingScreen";
 import Joystick from "./Joystick";
 import CountdownOverlay from "./CountdownOverlay";
 import { useIsTouch } from "@/hooks/useIsTouch";
+import { useTouchMode } from "@/hooks/useTouchMode";
 import type { MsgType, PositionsPayload } from "@/lib/protocol";
 
 interface GameScreenProps {
@@ -21,6 +22,7 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
   const { myId, mapData, myTasks, gameOver, myRole, meeting, activeSabotage } =
     useGameStore();
   const isTouch = useIsTouch();
+  const touchMode = useTouchMode();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Engine | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -49,6 +51,54 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
       engineRef.current.input.setJoystickDirection(x, y);
     }
   }, []);
+
+  // --- Touch-follow mode: touch canvas → move toward finger ---
+  const touchFollowActive = useRef(false);
+  const updateTouchFollow = useCallback((clientX: number, clientY: number) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const playerScreen = engine.getPlayerScreenPos();
+    if (!playerScreen) return;
+    const dx = clientX - playerScreen.x;
+    const dy = clientY - playerScreen.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    // Dead zone: if finger is very close to player, don't move
+    if (dist < 20) {
+      engine.input.setJoystickDirection(0, 0);
+      return;
+    }
+    engine.input.setJoystickDirection(dx / dist, dy / dist);
+  }, []);
+  const handleTouchFollowStart = useCallback(
+    (e: React.PointerEvent) => {
+      if (touchMode !== "follow" || !isTouch) return;
+      touchFollowActive.current = true;
+      updateTouchFollow(e.clientX, e.clientY);
+    },
+    [touchMode, isTouch, updateTouchFollow]
+  );
+  // Window-level listeners for follow mode (so dragging over UI still works)
+  useEffect(() => {
+    if (touchMode !== "follow" || !isTouch) return;
+    const onMove = (e: PointerEvent) => {
+      if (!touchFollowActive.current) return;
+      updateTouchFollow(e.clientX, e.clientY);
+    };
+    const onEnd = () => {
+      touchFollowActive.current = false;
+      if (engineRef.current) {
+        engineRef.current.input.setJoystickDirection(0, 0);
+      }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd);
+    window.addEventListener("pointercancel", onEnd);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("pointercancel", onEnd);
+    };
+  }, [touchMode, isTouch, updateTouchFollow]);
 
   // Initialize engine ONCE per game (not per `players` change!)
   //
@@ -219,8 +269,8 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
         inCafeteria={inCafeteria}
       />
 
-      {/* Joystick — only on small screens */}
-      <Joystick onMove={handleJoystickMove} />
+      {/* Joystick — only on touch devices in joystick mode */}
+      {touchMode === "joystick" && <Joystick onMove={handleJoystickMove} />}
 
       {/* Controls hint — only for keyboard users (not touch devices) */}
       {!isTouch && (
@@ -229,7 +279,11 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
         </div>
       )}
 
-      <canvas ref={canvasRef} className="w-full h-full block" />
+      <canvas
+        ref={canvasRef}
+        className={`w-full h-full block ${touchMode === "follow" && isTouch ? "touch-none" : ""}`}
+        onPointerDown={handleTouchFollowStart}
+      />
 
       {/* Sabotage visual effects */}
       {activeSabotage === "lights_out" && (

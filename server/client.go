@@ -945,11 +945,11 @@ func runMeetingTimeline(room *Room, meeting *Meeting, discTime, voteTime float64
 	}()
 
 	// Discussion phase
-	time.Sleep(time.Duration(discTime) * time.Second)
+	time.Sleep(time.Duration(discTime * float64(time.Second)))
 	meeting.SetPhase("voting")
 
 	// Voting phase
-	time.Sleep(time.Duration(voteTime) * time.Second)
+	time.Sleep(time.Duration(voteTime * float64(time.Second)))
 
 	// Tally
 	ejectedID := meeting.TallyVotes()

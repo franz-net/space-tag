@@ -38,15 +38,27 @@ type AIBrain struct {
 	GoalDeadline time.Time // when current goal expires (e.g. finish task)
 	NextDecision time.Time // throttle re-planning
 
+	// Stuck detection
+	LastPos    Vec2 // position last tick
+	StuckTicks int  // consecutive ticks with <1px movement
+
+	// Awareness — who was near whom (for voting)
+	// Updated every ~500ms: tracks which players the AI has seen nearby
+	NearbyLog    map[string]time.Time // playerID -> last time seen near this AI
+	SeenNearBody map[string]bool      // playerID -> seen near a body (highly sus)
+
 	// Meeting state (reset each meeting)
-	MeetingVoted bool
+	MeetingVoted   bool
 	MeetingChatted bool
+	MeetingChats   int           // number of messages sent this meeting
 	VoteDelay      time.Duration // randomized per meeting so AIs don't all vote at once
 }
 
 const (
-	AIWaypointReach = 24.0  // distance to consider waypoint reached
-	AIDecisionDelay = 500 * time.Millisecond
+	AIWaypointReach  = 24.0  // distance to consider waypoint reached
+	AIDecisionDelay  = 500 * time.Millisecond
+	AIStuckThreshold = 20    // ticks (~1 second) before stuck recovery
+	AINearbyRange    = 200.0 // range to log nearby players
 )
 
 var aiBotNames = []string{
@@ -56,10 +68,12 @@ var aiBotNames = []string{
 
 func NewAIBrain(playerID string, role Role) *AIBrain {
 	return &AIBrain{
-		PlayerID:   playerID,
-		Role:       role,
-		Difficulty: AINormal,
-		Goal:       GoalIdle,
+		PlayerID:     playerID,
+		Role:         role,
+		Difficulty:   AINormal,
+		Goal:         GoalIdle,
+		NearbyLog:    make(map[string]time.Time),
+		SeenNearBody: make(map[string]bool),
 	}
 }
 
@@ -84,10 +98,68 @@ func AITick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 	if ai.MeetingVoted || ai.MeetingChatted {
 		ai.MeetingVoted = false
 		ai.MeetingChatted = false
+		ai.MeetingChats = 0
 		ai.VoteDelay = 0
+		// Clear stale suspicion data after each meeting
+		ai.SeenNearBody = make(map[string]bool)
 	}
 
 	pos := gs.Positions[ai.PlayerID]
+
+	// --- Stuck detection ---
+	dx := pos.X - ai.LastPos.X
+	dy := pos.Y - ai.LastPos.Y
+	movedSq := dx*dx + dy*dy
+	if movedSq < 1.0 && ai.Goal != GoalDoingTask && ai.Goal != GoalFakeTask && ai.Goal != GoalIdle {
+		ai.StuckTicks++
+	} else {
+		ai.StuckTicks = 0
+	}
+	ai.LastPos = pos
+
+	// If stuck too long, abandon current goal and path to nearest waypoint
+	if ai.StuckTicks >= AIStuckThreshold {
+		ai.StuckTicks = 0
+		ai.Goal = GoalIdle
+		ai.GoalTarget = ""
+		// Find nearest walkable waypoint and path there to unstick
+		wpIdx := nearestWaypoint(pos)
+		wp := DefaultWaypoints[wpIdx]
+		ai.Path = []Vec2{wp}
+		ai.PathIdx = 0
+		ai.Goal = GoalWander
+		ai.NextDecision = now.Add(AIDecisionDelay * 3) // give extra time to reach waypoint
+	}
+
+	// --- Awareness: log nearby players (for voting intelligence) ---
+	if now.After(ai.NextDecision) {
+		for otherID, otherPos := range gs.Positions {
+			if otherID == ai.PlayerID || gs.Frozen[otherID] {
+				continue
+			}
+			odx := pos.X - otherPos.X
+			ody := pos.Y - otherPos.Y
+			if odx*odx+ody*ody <= AINearbyRange*AINearbyRange {
+				ai.NearbyLog[otherID] = now
+			}
+		}
+		// Check if any alive player is near a body (sus!)
+		for bodyID, bodyPos := range gs.BodyPos {
+			if gs.BodyReported[bodyID] {
+				continue
+			}
+			for otherID, otherPos := range gs.Positions {
+				if otherID == ai.PlayerID || gs.Frozen[otherID] {
+					continue
+				}
+				bdx := otherPos.X - bodyPos.X
+				bdy := otherPos.Y - bodyPos.Y
+				if bdx*bdx+bdy*bdy <= 150*150 {
+					ai.SeenNearBody[otherID] = true
+				}
+			}
+		}
+	}
 
 	// Periodically re-plan / pick a new goal
 	if now.After(ai.NextDecision) {
@@ -380,7 +452,10 @@ func aiOnArrive(gs *GameState, ai *AIBrain, now time.Time) {
 
 // aiWander picks a random room to walk to
 func aiWander(ai *AIBrain, pos Vec2) {
-	target := DefaultWaypoints[rand.Intn(6)] // pick a random room
+	// Pick a random room waypoint (indices 0-5), but also consider secondary
+	// waypoints (13+) so AI visits different parts of rooms
+	allRoom := []int{0, 1, 2, 3, 4, 5, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22}
+	target := DefaultWaypoints[allRoom[rand.Intn(len(allRoom))]]
 	ai.Goal = GoalWander
 	ai.Path = FindPath(pos, target)
 	ai.PathIdx = 0
@@ -485,13 +560,14 @@ func aiMeetingTick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 		return
 	}
 
-	// Send one quick chat during discussion phase
-	if !ai.MeetingChatted && gs.Meeting.Phase == "discussion" {
+	// Send chat messages during discussion phase (up to 3 per meeting)
+	if ai.MeetingChats < 3 && gs.Meeting.Phase == "discussion" {
 		// Stagger: only send after a delay relative to meeting start
 		elapsed := now.Sub(gs.Meeting.StartTime)
-		if elapsed > 5*time.Second && rand.Float64() < 0.02 { // ~2% chance per tick
+		if elapsed > 3*time.Second && rand.Float64() < 0.03 { // ~3% chance per tick
+			ai.MeetingChats++
 			ai.MeetingChatted = true
-			messageID := pickAIChatMessage(ai)
+			messageID := pickAIChatMessage(gs, ai)
 			if messageID != "" && gs.Meeting.CanSendChat(ai.PlayerID) {
 				gs.Meeting.RecordChat(ai.PlayerID)
 				go func(r *Room, sender, msg string) {
@@ -515,7 +591,8 @@ func aiMeetingTick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 		if ai.VoteDelay == 0 {
 			ai.VoteDelay = time.Duration(2+rand.Intn(8)) * time.Second
 		}
-		elapsed := now.Sub(gs.Meeting.StartTime) - DiscussionDuration
+		discDur := time.Duration(gs.Settings.DiscussionTime * float64(time.Second))
+		elapsed := now.Sub(gs.Meeting.StartTime) - discDur
 		if elapsed > ai.VoteDelay {
 			targetID := pickAIVoteTarget(gs, ai)
 			if gs.Meeting.CastVote(ai.PlayerID, targetID) {
@@ -534,18 +611,61 @@ func aiMeetingTick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 	}
 }
 
-// pickAIChatMessage returns a quick message ID for the AI to send
-func pickAIChatMessage(ai *AIBrain) string {
-	// Mix of defense, info, and location messages
-	options := []string{
-		"doing_task", "where", "idk", "trust_me", "with_me",
-		"loc_cafeteria", "loc_medbay", "loc_navigation",
-		"loc_engine", "loc_storage", "loc_reactor",
+// pickAIChatMessage returns a contextual quick message ID for the AI to send
+func pickAIChatMessage(gs *GameState, ai *AIBrain) string {
+	if ai.Role == RoleCrewmate {
+		// Crewmate: share useful info
+		// If seen someone near a body, accuse them
+		for playerID := range ai.SeenNearBody {
+			// Find this player's color to send the right "sus" message
+			if color, ok := getPlayerColor(gs, playerID); ok {
+				msgID := "sus_" + color
+				return msgID
+			}
+		}
+		// Share current location
+		pos := gs.Positions[ai.PlayerID]
+		room := gs.Map.GetRoomAt(pos)
+		if room != "" {
+			locMsg := "loc_" + room
+			// 50% location, 50% other info
+			if rand.Float64() < 0.5 {
+				return locMsg
+			}
+		}
+		// Mix of defense/info
+		options := []string{"doing_task", "where", "idk", "trust_me", "with_me", "i_saw"}
+		return options[rand.Intn(len(options))]
 	}
+
+	// Tagger: deflect and accuse others
+	// Pick a random alive crewmate to accuse
+	if rand.Float64() < 0.5 {
+		for _, id := range gs.Meeting.AlivePlayers {
+			if id == ai.PlayerID || gs.Frozen[id] {
+				continue
+			}
+			if gs.Roles[id] == RoleCrewmate {
+				if color, ok := getPlayerColor(gs, id); ok {
+					return "sus_" + color
+				}
+			}
+		}
+	}
+
+	// Defense messages
+	options := []string{"not_me", "doing_task", "trust_me", "where", "idk"}
 	return options[rand.Intn(len(options))]
 }
 
-// pickAIVoteTarget decides who the AI votes for
+// getPlayerColor returns the color name for a player ID from the pre-built map.
+// This avoids taking Room.mu while gs.mu is held (which would risk deadlock).
+func getPlayerColor(gs *GameState, playerID string) (string, bool) {
+	color, ok := gs.PlayerColors[playerID]
+	return color, ok
+}
+
+// pickAIVoteTarget decides who the AI votes for using suspicion data
 func pickAIVoteTarget(gs *GameState, ai *AIBrain) string {
 	if gs.Meeting == nil {
 		return ""
@@ -560,24 +680,72 @@ func pickAIVoteTarget(gs *GameState, ai *AIBrain) string {
 		candidates = append(candidates, id)
 	}
 
-	// Tagger AI: never votes for self, sometimes accuses based on chat
-	// Crewmate AI: random pick if no info, with skip bias
 	if len(candidates) == 0 {
 		return ""
 	}
 
-	// 40% chance to skip (especially Normal)
-	if rand.Float64() < 0.4 {
-		return ""
-	}
+	if ai.Role == RoleCrewmate {
+		// --- Crewmate voting logic ---
+		// Priority 1: vote for someone seen near a body (very sus)
+		var susPlayers []string
+		for _, id := range candidates {
+			if ai.SeenNearBody[id] {
+				susPlayers = append(susPlayers, id)
+			}
+		}
+		if len(susPlayers) > 0 {
+			return susPlayers[rand.Intn(len(susPlayers))]
+		}
 
-	// Tagger should not vote for fellow tagger (only one tagger anyway, so just exclude self)
-	if ai.Role == RoleTagger {
-		// Avoid voting for self, pick any other player
+		// Priority 2: vote for someone NOT seen recently (strangers are sus)
+		// Players the AI hasn't encountered are more likely to be the tagger
+		// skulking in a different part of the map
+		var unseenPlayers []string
+		recentThreshold := time.Now().Add(-15 * time.Second)
+		for _, id := range candidates {
+			lastSeen, seen := ai.NearbyLog[id]
+			if !seen || lastSeen.Before(recentThreshold) {
+				unseenPlayers = append(unseenPlayers, id)
+			}
+		}
+		if len(unseenPlayers) > 0 && rand.Float64() < 0.6 {
+			return unseenPlayers[rand.Intn(len(unseenPlayers))]
+		}
+
+		// 25% chance to skip if no strong leads
+		if rand.Float64() < 0.25 {
+			return ""
+		}
+
+		// Fallback: random
 		return candidates[rand.Intn(len(candidates))]
 	}
 
-	// Crewmate: random
+	// --- Tagger voting logic ---
+	// Strategy: deflect suspicion
+
+	// Try to vote for the meeting caller (deflect attention onto them)
+	callerID := gs.Meeting.CallerID
+	if callerID != ai.PlayerID && rand.Float64() < 0.4 {
+		for _, id := range candidates {
+			if id == callerID {
+				return id
+			}
+		}
+	}
+
+	// Vote for someone who was near the body (make it look like you're "helping")
+	for _, id := range candidates {
+		if ai.SeenNearBody[id] && rand.Float64() < 0.5 {
+			return id
+		}
+	}
+
+	// 20% chance to skip (taggers skip less to avoid looking passive)
+	if rand.Float64() < 0.2 {
+		return ""
+	}
+
 	return candidates[rand.Intn(len(candidates))]
 }
 

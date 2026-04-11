@@ -371,11 +371,13 @@ func (r *Room) startGame() {
 		p.Alive = true
 	}
 
-	// Build roles map for task assignment
+	// Build roles map and color map for task assignment and AI chat
 	roles := make(map[string]Role, len(ids))
+	playerColors := make(map[string]string, len(ids))
 	aiIDs := []string{}
 	for _, id := range ids {
 		roles[id] = r.Players[id].Role
+		playerColors[id] = string(r.Players[id].Color)
 		if r.Players[id].AI {
 			aiIDs = append(aiIDs, id)
 		}
@@ -383,7 +385,7 @@ func (r *Room) startGame() {
 
 	// Initialize game state using room settings
 	gm := BuildMap()
-	r.Game = NewGameState(gm, ids, roles, aiIDs, settings)
+	r.Game = NewGameState(gm, ids, roles, aiIDs, settings, playerColors)
 	r.Game.Room = r // back-pointer for AI tick callbacks
 
 	r.mu.Unlock()

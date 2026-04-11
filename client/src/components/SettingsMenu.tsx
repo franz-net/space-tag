@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { sounds } from "@/lib/sounds";
+import { useIsTouch } from "@/hooks/useIsTouch";
+import { useTouchMode, setTouchMode } from "@/hooks/useTouchMode";
 import HowToPlay from "./HowToPlay";
 
 export default function SettingsMenu() {
@@ -9,6 +11,8 @@ export default function SettingsMenu() {
   const [showHelp, setShowHelp] = useState(false);
   const [muted, setMuted] = useState(false);
   const [musicMuted, setMusicMuted] = useState(false);
+  const isTouch = useIsTouch();
+  const touchMode = useTouchMode();
 
   useEffect(() => {
     setMuted(sounds.isMuted());
@@ -68,6 +72,22 @@ export default function SettingsMenu() {
                 {musicMuted ? "Off" : "On"}
               </span>
             </button>
+            {/* Touch controls toggle — only on touch devices */}
+            {isTouch && (
+              <button
+                onClick={() => {
+                  sounds.click();
+                  setTouchMode(touchMode === "joystick" ? "follow" : "joystick");
+                }}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800 text-white text-sm text-left"
+              >
+                <span className="text-lg">{touchMode === "joystick" ? "🕹️" : "👆"}</span>
+                <span className="flex-1">Controls</span>
+                <span className="text-xs text-gray-400">
+                  {touchMode === "joystick" ? "Joystick" : "Follow"}
+                </span>
+              </button>
+            )}
             <button
               onClick={() => {
                 sounds.click();

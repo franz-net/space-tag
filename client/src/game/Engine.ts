@@ -341,6 +341,17 @@ export class Engine {
     }
   }
 
+  /** Returns the local player's screen position (for touch-follow controls). */
+  getPlayerScreenPos(): { x: number; y: number } | null {
+    if (!this.camera || !this.playerManager) return null;
+    const worldPos = this.playerManager.getPosition(this.localPlayerId);
+    if (!worldPos) return null;
+    return {
+      x: worldPos.x + this.camera.x,
+      y: worldPos.y + this.camera.y,
+    };
+  }
+
   markReady() {
     this.initialized = true;
   }

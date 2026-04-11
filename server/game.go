@@ -24,9 +24,10 @@ type GameState struct {
 	Meeting     *Meeting           // current meeting, nil if none
 	AIBrains    map[string]*AIBrain // playerID -> AI brain (only for AI players)
 	Room        *Room              // back-pointer for AI tick callbacks
-	Sabotage         *SabotageState // current sabotage state
-	SabotageCooldown time.Time     // earliest time tagger can sabotage again
-	Settings         RoomSettings  // game settings from lobby
+	Sabotage         *SabotageState    // current sabotage state
+	SabotageCooldown time.Time        // earliest time tagger can sabotage again
+	Settings         RoomSettings     // game settings from lobby
+	PlayerColors     map[string]string // playerID -> color name (for AI chat)
 	mu          sync.RWMutex
 	stopCh      chan struct{}
 }
@@ -51,7 +52,7 @@ type MapDataPayload struct {
 	Map *GameMap `json:"map"`
 }
 
-func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role, aiIDs []string, settings RoomSettings) *GameState {
+func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role, aiIDs []string, settings RoomSettings, playerColors map[string]string) *GameState {
 	positions := make(map[string]Vec2, len(playerIDs))
 	// Spread players in a single horizontal row so everyone is at the
 	// same Y and well above the table obstacle.
@@ -87,6 +88,7 @@ func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role, aiIDs 
 		Sabotage:         NewSabotageState(),
 		SabotageCooldown: time.Now(),
 		Settings:         settings,
+		PlayerColors:     playerColors,
 		stopCh:           make(chan struct{}),
 	}
 }
@@ -161,7 +163,7 @@ func (gs *GameState) TryTag(selfID, targetID string, now time.Time) (Vec2, bool)
 	// Freeze the target
 	gs.Frozen[targetID] = true
 	gs.BodyPos[targetID] = b
-	gs.TagCooldown = now.Add(time.Duration(gs.Settings.TagCooldown) * time.Second)
+	gs.TagCooldown = now.Add(time.Duration(gs.Settings.TagCooldown * float64(time.Second)))
 	// Stop them moving
 	gs.MoveInputs[targetID] = Vec2{}
 
