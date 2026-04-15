@@ -19,11 +19,16 @@ const COLOR_ROW: Record<PlayerColor, number> = {
   orange: 5,
 };
 
-// Which columns have art: Down1=0, Up2=4, Up3=5
-const COL_FRONT = 0; // front-facing (Down frame 1)
-const COL_BACK = 4;  // back-facing (Up frame 2)
+// Walk cycle: stand(0) → walkL(1) → stand(0) → walkR(2) → repeat
+const WALK_CYCLE = [0, 1, 0, 2];
+const WALK_FRAME_DURATION = 8; // engine ticks per animation frame (~133ms at 60fps)
 
 type Direction = "down" | "up" | "left" | "right";
+
+interface ColorTextures {
+  down: Texture[];  // cols 0,1,2
+  up: Texture[];    // cols 3,4,5
+}
 
 interface PlayerSpriteData {
   container: Container;
@@ -36,30 +41,32 @@ interface PlayerSpriteData {
   targetX: number;
   targetY: number;
   frozen: boolean;
-  bobPhase: number;
   prevX: number;
   prevY: number;
   direction: Direction;
-  frontTexture: Texture;
-  backTexture: Texture;
+  textures: ColorTextures;
+  walkTick: number;    // counts up while moving
+  walkFrame: number;   // index into WALK_CYCLE
 }
 
 // Cached textures per color, created once from the spritesheet
-let textureCache: Map<PlayerColor, { front: Texture; back: Texture }> | null = null;
+let textureCache: Map<PlayerColor, ColorTextures> | null = null;
 
-function getTextures(baseTexture: Texture): Map<PlayerColor, { front: Texture; back: Texture }> {
+function cutFrame(source: Texture, col: number, row: number): Texture {
+  return new Texture({
+    source: source.source,
+    frame: new Rectangle(col * FRAME_SIZE, row * FRAME_SIZE, FRAME_SIZE, FRAME_SIZE),
+  });
+}
+
+function getTextures(baseTexture: Texture): Map<PlayerColor, ColorTextures> {
   if (textureCache) return textureCache;
   textureCache = new Map();
   for (const [color, row] of Object.entries(COLOR_ROW) as [PlayerColor, number][]) {
-    const front = new Texture({
-      source: baseTexture.source,
-      frame: new Rectangle(COL_FRONT * FRAME_SIZE, row * FRAME_SIZE, FRAME_SIZE, FRAME_SIZE),
+    textureCache.set(color, {
+      down: [cutFrame(baseTexture, 0, row), cutFrame(baseTexture, 1, row), cutFrame(baseTexture, 2, row)],
+      up:   [cutFrame(baseTexture, 3, row), cutFrame(baseTexture, 4, row), cutFrame(baseTexture, 5, row)],
     });
-    const back = new Texture({
-      source: baseTexture.source,
-      frame: new Rectangle(COL_BACK * FRAME_SIZE, row * FRAME_SIZE, FRAME_SIZE, FRAME_SIZE),
-    });
-    textureCache.set(color, { front, back });
   }
   return textureCache;
 }
@@ -133,12 +140,12 @@ export class PlayerManager {
       targetX: 0,
       targetY: 0,
       frozen: false,
-      bobPhase: 0,
       prevX: 0,
       prevY: 0,
       direction: "down",
-      frontTexture: colorTextures.front,
-      backTexture: colorTextures.back,
+      textures: colorTextures,
+      walkTick: 0,
+      walkFrame: 0,
     });
   }
 
@@ -195,38 +202,44 @@ export class PlayerManager {
         }
       }
 
-      // Set texture and flip based on direction
+      // Walk cycle animation
+      sprite.prevX = sprite.currentX;
+      sprite.prevY = sprite.currentY;
+      const isWalking = !sprite.frozen && speed > 0.3;
+
+      if (isWalking) {
+        sprite.walkTick++;
+        if (sprite.walkTick >= WALK_FRAME_DURATION) {
+          sprite.walkTick = 0;
+          sprite.walkFrame = (sprite.walkFrame + 1) % WALK_CYCLE.length;
+        }
+      } else {
+        // Reset to standing frame
+        sprite.walkTick = 0;
+        sprite.walkFrame = 0;
+      }
+
+      const frameIdx = WALK_CYCLE[sprite.walkFrame];
+
+      // Pick texture set and flip based on direction
+      // For left/right without dedicated side sprites, use front with flip
       switch (sprite.direction) {
         case "down":
-          sprite.sprite.texture = sprite.frontTexture;
+          sprite.sprite.texture = sprite.textures.down[frameIdx];
           sprite.sprite.scale.x = 1;
           break;
         case "up":
-          sprite.sprite.texture = sprite.backTexture;
+          sprite.sprite.texture = sprite.textures.up[frameIdx];
           sprite.sprite.scale.x = 1;
           break;
         case "left":
-          // Use front texture, flipped horizontally
-          sprite.sprite.texture = sprite.frontTexture;
+          sprite.sprite.texture = sprite.textures.down[frameIdx];
           sprite.sprite.scale.x = -1;
           break;
         case "right":
-          // Use front texture, normal
-          sprite.sprite.texture = sprite.frontTexture;
+          sprite.sprite.texture = sprite.textures.down[frameIdx];
           sprite.sprite.scale.x = 1;
           break;
-      }
-
-      // Walking bob — only when moving and not frozen
-      sprite.prevX = sprite.currentX;
-      sprite.prevY = sprite.currentY;
-      if (!sprite.frozen && speed > 0.3) {
-        sprite.bobPhase += 0.35;
-        const bob = Math.sin(sprite.bobPhase) * 2;
-        sprite.sprite.y = bob;
-      } else {
-        sprite.bobPhase = 0;
-        sprite.sprite.y = 0;
       }
 
       if (id === this.localPlayerId) {
