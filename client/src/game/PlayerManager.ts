@@ -1,17 +1,36 @@
-import { Container, Graphics, Text } from "pixi.js";
+import { Container, Graphics, Sprite, Text, Texture, Rectangle } from "pixi.js";
 import type { PlayerInfo } from "./Engine";
-import { COLOR_HEX } from "@/lib/protocol";
+import type { PlayerColor } from "@/lib/protocol";
 
 const PLAYER_RADIUS = 16;
 const LERP_SPEED = 0.2;
 const VISION_RADIUS = 250;
 
-interface PlayerSprite {
+// Spritesheet layout: 13 cols x 6 rows, 32x32 per frame
+// Cols: Down(0-2), Up(3-5), Left(6-8), Right(9-11), Frozen(12)
+// Rows: red, blue, green, yellow, purple, orange
+const FRAME_SIZE = 32;
+const COLOR_ROW: Record<PlayerColor, number> = {
+  red: 0,
+  blue: 1,
+  green: 2,
+  yellow: 3,
+  purple: 4,
+  orange: 5,
+};
+
+// Which columns have art: Down1=0, Up2=4, Up3=5
+const COL_FRONT = 0; // front-facing (Down frame 1)
+const COL_BACK = 4;  // back-facing (Up frame 2)
+
+type Direction = "down" | "up" | "left" | "right";
+
+interface PlayerSpriteData {
   container: Container;
-  body: Graphics;
-  shape: Graphics;
+  sprite: Sprite;
+  shadow: Graphics;
   nameLabel: Text;
-  color: string;
+  color: PlayerColor;
   currentX: number;
   currentY: number;
   targetX: number;
@@ -20,82 +39,65 @@ interface PlayerSprite {
   bobPhase: number;
   prevX: number;
   prevY: number;
+  direction: Direction;
+  frontTexture: Texture;
+  backTexture: Texture;
 }
 
-// Each color also gets a unique white shape so colorblind kids can tell
-// players apart at a glance.
-function drawColorShape(g: Graphics, color: string) {
-  g.clear();
-  const s = 6; // half-size
-  switch (color) {
-    case "red":
-      // triangle pointing up
-      g.poly([0, -s, s, s, -s, s]).fill(0xffffff);
-      break;
-    case "blue":
-      // square
-      g.rect(-s, -s, s * 2, s * 2).fill(0xffffff);
-      break;
-    case "green":
-      // circle
-      g.circle(0, 0, s).fill(0xffffff);
-      break;
-    case "yellow":
-      // star (5-point)
-      {
-        const pts: number[] = [];
-        for (let i = 0; i < 10; i++) {
-          const r = i % 2 === 0 ? s + 1 : (s + 1) / 2.3;
-          const a = (Math.PI / 5) * i - Math.PI / 2;
-          pts.push(Math.cos(a) * r, Math.sin(a) * r);
-        }
-        g.poly(pts).fill(0xffffff);
-      }
-      break;
-    case "purple":
-      // diamond
-      g.poly([0, -s - 1, s + 1, 0, 0, s + 1, -s - 1, 0]).fill(0xffffff);
-      break;
-    case "orange":
-      // plus / cross
-      {
-        const t = 2;
-        g.rect(-s, -t, s * 2, t * 2).fill(0xffffff);
-        g.rect(-t, -s, t * 2, s * 2).fill(0xffffff);
-      }
-      break;
+// Cached textures per color, created once from the spritesheet
+let textureCache: Map<PlayerColor, { front: Texture; back: Texture }> | null = null;
+
+function getTextures(baseTexture: Texture): Map<PlayerColor, { front: Texture; back: Texture }> {
+  if (textureCache) return textureCache;
+  textureCache = new Map();
+  for (const [color, row] of Object.entries(COLOR_ROW) as [PlayerColor, number][]) {
+    const front = new Texture({
+      source: baseTexture.source,
+      frame: new Rectangle(COL_FRONT * FRAME_SIZE, row * FRAME_SIZE, FRAME_SIZE, FRAME_SIZE),
+    });
+    const back = new Texture({
+      source: baseTexture.source,
+      frame: new Rectangle(COL_BACK * FRAME_SIZE, row * FRAME_SIZE, FRAME_SIZE, FRAME_SIZE),
+    });
+    textureCache.set(color, { front, back });
   }
+  return textureCache;
 }
 
 export class PlayerManager {
   container: Container;
-  private sprites: Map<string, PlayerSprite> = new Map();
+  private sprites: Map<string, PlayerSpriteData> = new Map();
   private localPlayerId: string = "";
+  private sheetTexture: Texture | null = null;
 
   constructor(players: PlayerInfo[]) {
     this.container = new Container();
 
+    // Load spritesheet
+    const tex = Texture.from("/sprites.png");
+    this.sheetTexture = tex;
+
     for (const p of players) {
-      this.createSprite(p);
+      this.createSprite(p, tex);
     }
   }
 
-  private createSprite(info: PlayerInfo) {
+  private createSprite(info: PlayerInfo, sheetTex: Texture) {
     const playerContainer = new Container();
+    const textures = getTextures(sheetTex);
+    const colorTextures = textures.get(info.color)!;
 
-    // Body circle — single clean Graphics with fill + stroke
-    const body = new Graphics();
-    const hex = parseInt(COLOR_HEX[info.color].replace("#", ""), 16);
-    body
-      .circle(0, 0, PLAYER_RADIUS)
-      .fill(hex)
-      .stroke({ color: 0x000000, width: 2 });
-    playerContainer.addChild(body);
+    // Shadow ellipse under the character
+    const shadow = new Graphics();
+    shadow.ellipse(0, 10, 14, 6).fill({ color: 0x000000, alpha: 0.35 });
+    playerContainer.addChild(shadow);
 
-    // Color-blind shape badge — drawn in white on top of the body
-    const shape = new Graphics();
-    drawColorShape(shape, info.color);
-    playerContainer.addChild(shape);
+    // Character sprite
+    const sprite = new Sprite(colorTextures.front);
+    sprite.anchor.set(0.5);
+    // Scale: the sprite is 32x32 pixels, player radius is 16 game units
+    // so we want the sprite to appear ~32x32 in game space (no extra scaling)
+    playerContainer.addChild(sprite);
 
     // Name label
     const nameLabel = new Text({
@@ -122,10 +124,10 @@ export class PlayerManager {
 
     this.sprites.set(info.id, {
       container: playerContainer,
-      body,
-      shape,
+      sprite,
+      shadow,
       nameLabel,
-      color: COLOR_HEX[info.color],
+      color: info.color,
       currentX: 0,
       currentY: 0,
       targetX: 0,
@@ -134,6 +136,9 @@ export class PlayerManager {
       bobPhase: 0,
       prevX: 0,
       prevY: 0,
+      direction: "down",
+      frontTexture: colorTextures.front,
+      backTexture: colorTextures.back,
     });
   }
 
@@ -152,7 +157,6 @@ export class PlayerManager {
       const isFrozen = frozenIds.has(id);
       if (isFrozen !== sprite.frozen) {
         sprite.frozen = isFrozen;
-        // Ghost look: smaller (0.7x), more translucent, dim name
         sprite.nameLabel.alpha = isFrozen ? 0.4 : 1.0;
         sprite.container.scale.set(isFrozen ? 0.7 : 1.0);
       }
@@ -177,22 +181,52 @@ export class PlayerManager {
       sprite.container.x = sprite.currentX;
       sprite.container.y = sprite.currentY;
 
-      // Walking bob — only when moving and not frozen
+      // Movement direction — pick sprite based on which way we're moving
       const movedX = sprite.currentX - sprite.prevX;
       const movedY = sprite.currentY - sprite.prevY;
       const speed = Math.sqrt(movedX * movedX + movedY * movedY);
+
+      if (speed > 0.3) {
+        // Determine dominant direction
+        if (Math.abs(movedY) > Math.abs(movedX)) {
+          sprite.direction = movedY < 0 ? "up" : "down";
+        } else {
+          sprite.direction = movedX < 0 ? "left" : "right";
+        }
+      }
+
+      // Set texture and flip based on direction
+      switch (sprite.direction) {
+        case "down":
+          sprite.sprite.texture = sprite.frontTexture;
+          sprite.sprite.scale.x = 1;
+          break;
+        case "up":
+          sprite.sprite.texture = sprite.backTexture;
+          sprite.sprite.scale.x = 1;
+          break;
+        case "left":
+          // Use front texture, flipped horizontally
+          sprite.sprite.texture = sprite.frontTexture;
+          sprite.sprite.scale.x = -1;
+          break;
+        case "right":
+          // Use front texture, normal
+          sprite.sprite.texture = sprite.frontTexture;
+          sprite.sprite.scale.x = 1;
+          break;
+      }
+
+      // Walking bob — only when moving and not frozen
       sprite.prevX = sprite.currentX;
       sprite.prevY = sprite.currentY;
       if (!sprite.frozen && speed > 0.3) {
         sprite.bobPhase += 0.35;
         const bob = Math.sin(sprite.bobPhase) * 2;
-        sprite.body.y = bob;
-        sprite.shape.y = bob;
+        sprite.sprite.y = bob;
       } else {
-        // Settle back to neutral
         sprite.bobPhase = 0;
-        sprite.body.y = 0;
-        sprite.shape.y = 0;
+        sprite.sprite.y = 0;
       }
 
       if (id === this.localPlayerId) {
@@ -201,22 +235,15 @@ export class PlayerManager {
         continue;
       }
 
-      // Other players' visibility rules:
-      // - Living players see only living players within vision radius
-      // - Ghost players see all living players AND all other ghosts (no fog)
-      // - Living players cannot see ghosts (only bodies)
+      // Visibility rules (unchanged)
       if (sprite.frozen) {
-        // This is a ghost — only ghosts can see them
         sprite.container.visible = localIsGhost;
         sprite.container.alpha = 0.4;
       } else {
-        // Living player
         if (localIsGhost) {
-          // Ghosts see everyone, no fog
           sprite.container.visible = true;
           sprite.container.alpha = 1.0;
         } else {
-          // Living: vision radius
           const dx = sprite.currentX - localX;
           const dy = sprite.currentY - localY;
           const dist = Math.sqrt(dx * dx + dy * dy);
@@ -233,7 +260,6 @@ export class PlayerManager {
     return { x: sprite.currentX, y: sprite.currentY };
   }
 
-  /** Returns the player ID of the closest non-self alive player within range */
   getNearestAlivePlayer(
     x: number,
     y: number,
@@ -257,7 +283,6 @@ export class PlayerManager {
     return nearestId;
   }
 
-  /** Returns the ID of a frozen body within range */
   getNearestFrozen(
     x: number,
     y: number,

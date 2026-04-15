@@ -1,4 +1,4 @@
-import { Application, Container } from "pixi.js";
+import { Application, Assets, Container } from "pixi.js";
 import { MapRenderer, type GameMapData } from "./MapRenderer";
 import { PlayerManager } from "./PlayerManager";
 import { Camera } from "./Camera";
@@ -72,6 +72,10 @@ export class Engine {
     this.gameContainer.addChild(this.shipContainer);
 
     this.input = new InputHandler();
+
+    // Preload the character spritesheet so textures are ready before
+    // PlayerManager creates sprites
+    await Assets.load("/sprites.png");
   }
 
   setupMap(mapData: GameMapData, players: PlayerInfo[], localPlayerId: string) {

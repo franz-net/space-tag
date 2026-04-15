@@ -11,6 +11,12 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Crisp pixel art upscaling — no blur on the game canvas */
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
 /* Big bouncy 3-2-1-GO countdown numbers at game start */
 @keyframes countdown-pop {
   0% {
