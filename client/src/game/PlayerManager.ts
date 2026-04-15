@@ -100,7 +100,7 @@ export class PlayerManager {
     playerContainer.addChild(shadow);
 
     // Character sprite
-    const sprite = new Sprite(colorTextures.front);
+    const sprite = new Sprite(colorTextures.down[0]);
     sprite.anchor.set(0.5);
     // Scale: the sprite is 32x32 pixels, player radius is 16 game units
     // so we want the sprite to appear ~32x32 in game space (no extra scaling)
