@@ -27,44 +27,49 @@ It's a small project built for one specific kid, but if it's useful to other par
 Players spawn in a 2D top-down spaceship with 6 rooms (Cafeteria, Medbay, Navigation, Engine, Storage, Reactor). One player is secretly the **Tagger**; the rest are **Crewmates**.
 
 - **Crewmates** wander the ship completing simple tap-and-drag mini-tasks (matching colors, connecting wires, tap targets, repeat-the-pattern). When all tasks are done, the crew wins.
-- **The Tagger** pretends to do tasks while secretly freezing crewmates one at a time (with a cooldown so they can't spam).
+- **The Tagger** pretends to do tasks while secretly freezing crewmates one at a time (with a cooldown so they can't spam). The tagger can also trigger **sabotages** to disrupt the crew.
 - When someone finds a frozen friend, they hit **REPORT** and everyone gathers in the cafeteria for a **meeting**.
 - During meetings, players use **icon messages** to share suspicions and then **vote** on who to send home. Tied or no votes means no one is ejected.
-- Crew wins by **completing all tasks** OR **voting out the tagger**. Tagger wins if they freeze enough crewmates.
+- Crew wins by **completing all tasks** OR **voting out the tagger**. Tagger wins if they freeze enough crewmates (or the **Meltdown** timer runs out).
 
 Frozen players become **ghosts**: they can move freely (no walls, no fog), see everything, and continue completing tasks — so getting tagged isn't a "you lose, sit out" punishment. Kids stay engaged.
 
 ## How to play
 
 ### 1. Get into a room
-- Type your name on the home screen
+- Type your name on the home screen (saved automatically)
 - Click **Create Room** to start a new game, or enter a 4-letter code from a friend and click **Join**
 - You'll see a lobby with everyone in the room
-- The host can add bot players if you don't have enough friends
+- The host can add bot players and adjust game settings (tasks, timers, cooldowns)
 
 ### 2. Start the game
 - The host clicks **Start Game** (need at least 2 players)
+- A 3-2-1-GO countdown plays
 - You'll see your secret role: **Crewmate** 💙 or **Tagger** 🔴
 - Don't tell anyone what you are!
 
 ### 3. Move around the ship
 - **Computer**: Use **WASD** or **arrow keys**
-- **Phone/tablet**: Drag the **joystick** in the bottom-left corner
+- **Phone/tablet**: Drag the **joystick** in the bottom-left corner, or switch to **finger-follow** mode in settings (tap anywhere to move toward your finger)
 
 ### 4. If you're a Crewmate
 - Look at your **task list** (top-right) — it shows what to do and where
 - Walk to a **yellow glowing station** in the room shown
 - When you're close, the **USE** button lights up — tap it
 - Solve the simple puzzle to complete the task
-- **Watch out!** If everything goes dark, the Tagger is near...
+- **Watch out!** If everything goes dark (Lights Out), the Tagger sabotaged the ship — find the fix station!
 - **Win**: complete all your team's tasks before the Tagger freezes everyone
 
 ### 5. If you're the Tagger
 - Pretend you're doing tasks so no one suspects you
 - When you're alone with a Crewmate, press the **TAG** button to freeze them
 - The TAG button has a **cooldown** so you can't spam it
+- Use **sabotages** to disrupt the crew:
+  - 💡 **Lights Out** — shrinks everyone's vision (fix in Reactor)
+  - 📡 **Comms Down** — hides the task list (fix in Navigation)
+  - 🌡️ **Meltdown** — 2-minute countdown; crew must fix BOTH Engine and Reactor or you win! (once per game)
 - Don't get caught!
-- **Win**: freeze enough Crewmates so you outnumber them
+- **Win**: freeze enough Crewmates so you outnumber them, or let Meltdown expire
 
 ### 6. Find a frozen friend?
 - Walk up to the icy body
@@ -74,11 +79,11 @@ Frozen players become **ghosts**: they can move freely (no walls, no fog), see e
 ### 7. Need to call a meeting?
 - Walk into the **Cafeteria**
 - Tap the orange **🚨 EMERGENCY** button
-- (You can only use this once per game!)
+- (You can only use this once per game! Blocked during active sabotage.)
 
 ### 8. During meetings
-- Look at the **icon messages** at the bottom
-- Tap one to share what you think (like 🔴 "Red is sus" or 🤝 "I was with Blue")
+- Look at the **icon messages** at the bottom — organized by category (Accuse, Defend, Info, Location, Vote)
+- Tap one to share what you think (like 🔴 "Red is sus" or 🏥 "Medbay")
 - When voting time starts, tap a player's face to vote them out
 - Or tap **⏭️ Skip** if you're not sure
 - The player with the most votes goes home
@@ -94,11 +99,13 @@ Frozen players become **ghosts**: they can move freely (no walls, no fog), see e
 
 | Layer | Technology | Purpose |
 |---|---|---|
-| Frontend | Next.js (App Router) + React + PixiJS v8 | UI, menus, 2D game canvas |
+| Frontend | Next.js 16 (App Router) + React + PixiJS v8 | UI, menus, 2D game canvas |
 | State | Zustand | Client game state |
+| Rendering | PixiJS v8 + pixel art sprites (32x32) | Characters, map, fog of war |
 | Backend | Go + gorilla/websocket | WebSocket server, room management, game loop, AI |
 | Protocol | JSON over WebSockets | Real-time, single connection per player |
 | Storage | In-memory (Go maps) | No database — rooms vanish when empty |
+| Deploy | Railway via GitHub Actions | Docker multi-stage build |
 
 The whole game runs from a single Go binary + a static Next.js build. No accounts, no database, no analytics.
 
@@ -110,41 +117,58 @@ space-tag/
 │   ├── main.go             # HTTP + WebSocket entry point
 │   ├── hub.go              # Connection registry
 │   ├── client.go           # Per-connection read/write pumps + handlers
-│   ├── room.go             # Room lifecycle, player slots
+│   ├── room.go             # Room lifecycle, player slots, settings
 │   ├── game.go             # Game state, 20Hz tick loop, ghost movement
-│   ├── gamemap.go          # Map topology (rooms, hallways, walkability)
+│   ├── gamemap.go          # Map topology (rooms, hallways, obstacles, walkability)
 │   ├── collision.go        # Circle-vs-AABB collision + wall sliding
 │   ├── tasks.go            # Task stations, assignment, progress
 │   ├── voting.go           # Meeting state, votes, pre-defined messages
+│   ├── sabotage.go         # Sabotage types, fix stations, meltdown
+│   ├── ai.go               # AI brains, pathfinding goals, stuck detection, voting
+│   ├── pathfinding.go      # BFS waypoint graph (23 nodes)
 │   ├── messages.go         # Protocol message types
 │   ├── player.go           # Player + role types
 │   └── errors.go
-└── client/                 # Next.js frontend
-    ├── src/
-    │   ├── app/page.tsx              # Single-page entry, routes by game state
-    │   ├── components/
-    │   │   ├── HomeScreen.tsx        # Name + create/join room
-    │   │   ├── Lobby.tsx             # Player list, bot controls, start
-    │   │   ├── GameScreen.tsx        # PixiJS canvas + HUD overlays
-    │   │   ├── HUD.tsx               # Tasks, action buttons, role badge
-    │   │   ├── TaskOverlay.tsx       # Mini-game overlay
-    │   │   ├── MeetingScreen.tsx     # Voting + quick chat
-    │   │   ├── GameOverScreen.tsx
-    │   │   ├── Joystick.tsx          # Mobile virtual joystick
-    │   │   └── tasks/                # The 4 mini-games
-    │   ├── game/                     # PixiJS engine
-    │   │   ├── Engine.ts
-    │   │   ├── MapRenderer.ts        # Rooms, hallways, starfield
-    │   │   ├── PlayerManager.ts      # Player sprites, ghost visibility
-    │   │   ├── BodyRenderer.ts       # Frozen body sprites
-    │   │   ├── TaskStations.ts
-    │   │   ├── Camera.ts
-    │   │   ├── FogOfWar.ts
-    │   │   └── InputHandler.ts
-    │   ├── hooks/useWebSocket.ts
-    │   ├── lib/protocol.ts           # Message types (mirrors server)
-    │   └── stores/gameStore.ts
-    └── public/
+├── client/                 # Next.js frontend
+│   ├── src/
+│   │   ├── app/page.tsx              # Single-page entry, routes by game state
+│   │   ├── components/
+│   │   │   ├── HomeScreen.tsx        # Name + create/join room
+│   │   │   ├── Lobby.tsx             # Player list, bot controls, settings, start
+│   │   │   ├── GameScreen.tsx        # PixiJS canvas + HUD overlays + touch controls
+│   │   │   ├── HUD.tsx               # Tasks, action buttons, role badge, sabotage
+│   │   │   ├── TaskOverlay.tsx       # Mini-game overlay + confetti
+│   │   │   ├── MeetingScreen.tsx     # Voting + quick chat by category
+│   │   │   ├── GameOverScreen.tsx
+│   │   │   ├── Joystick.tsx          # Mobile virtual joystick
+│   │   │   ├── CountdownOverlay.tsx  # 3-2-1-GO at game start
+│   │   │   ├── SettingsMenu.tsx      # Sound, music, touch controls
+│   │   │   ├── Confetti.tsx          # Task completion celebration
+│   │   │   └── tasks/                # The 4 mini-games
+│   │   ├── game/                     # PixiJS engine
+│   │   │   ├── Engine.ts
+│   │   │   ├── MapRenderer.ts        # Rooms, hallways, props, starfield
+│   │   │   ├── PlayerManager.ts      # Pixel art character sprites, walk cycle
+│   │   │   ├── BodyRenderer.ts       # Frozen body sprites
+│   │   │   ├── TaskStations.ts
+│   │   │   ├── Camera.ts
+│   │   │   ├── FogOfWar.ts
+│   │   │   └── InputHandler.ts
+│   │   ├── hooks/
+│   │   │   ├── useWebSocket.ts
+│   │   │   ├── useIsTouch.ts         # Touch device detection (pointer: coarse)
+│   │   │   └── useTouchMode.ts       # Joystick vs finger-follow toggle
+│   │   ├── lib/
+│   │   │   ├── protocol.ts           # Message types (mirrors server)
+│   │   │   ├── sounds.ts             # Web Audio API sounds + background music
+│   │   │   └── debug.ts
+│   │   └── stores/gameStore.ts
+│   └── public/
+│       └── sprites.png               # Character spritesheet (32x32, 6 colors)
+├── assets/                            # Source art files
+│   ├── space-tag-character-sprites.aseprite  # Aseprite source
+│   └── space-tag-character-sprites.png       # Exported spritesheet
+└── .github/workflows/                 # CI/CD to Railway
 ```
 
 ## Design principles
@@ -155,7 +179,7 @@ These rules drive every decision:
 2. **No violence language.** "Tag" not "kill". "Freeze" not "die". "Sent home" not "ejected". Frozen players are ghosts, not corpses.
 3. **No free-text input anywhere.** The only text users type is their own name. Communication during meetings is a fixed icon grid validated server-side.
 4. **Frustration-free.** Frozen players become ghosts who can keep playing. Disconnected players don't break the game. Soft player collisions (push apart) instead of getting stuck on each other.
-5. **Touch and keyboard equally first-class.** Virtual joystick for mobile, WASD/arrows for desktop, drag-and-drop for tasks.
+5. **Touch and keyboard equally first-class.** Virtual joystick or finger-follow for mobile, WASD/arrows for desktop, drag-and-drop for tasks.
 6. **Server-authoritative.** All game logic runs on the server. The client only sends inputs and renders snapshots — no way for a tampered client to cheat.
 
 ## Implementation phases
@@ -179,50 +203,72 @@ These rules drive every decision:
 - [x] Camera follows local player
 - [x] Fog of war (vision circle) — masks ship interior, leaves space visible
 - [x] Wall-sliding collision
+- [x] Room props as solid obstacles (beds, table, turbines, crates, reactor core)
 - [x] Soft player-to-player separation (no overlap, no stuck)
-- [x] WASD/arrow keys + virtual joystick on small screens
+- [x] WASD/arrow keys + virtual joystick + finger-follow touch controls
 
 ### Phase 3: Tasks System ✅
 - [x] 10 task stations across all 6 rooms
-- [x] Each crewmate gets 4 random tasks
+- [x] Configurable tasks per player (2-6, default 4)
 - [x] Task list visible in HUD with room hints
 - [x] **Tap Targets** mini-game (tap appearing stars)
-- [x] **Connect Wires** mini-game (drag-and-drop matching colors)
+- [x] **Connect Wires** mini-game (bidirectional drag-and-drop matching colors)
 - [x] **Match Colors** mini-game (memory pairs)
 - [x] **Simon Says** mini-game (repeat color sequence)
 - [x] Server-side task validation (proximity check + completion tracking)
 - [x] Crew win condition: all crewmate tasks complete
+- [x] Confetti celebration on task completion
 
 ### Phase 4: Tagger Mechanics + Voting ✅
-- [x] TAG button with 25s cooldown, 70px range
+- [x] TAG button with configurable cooldown, 70px range
 - [x] Frozen visual (ice-blue body sprite stays at freeze point)
 - [x] **Ghost mode** for frozen players (free movement, full vision, can still complete tasks)
 - [x] REPORT button when near a body
-- [x] Emergency meeting button (1 use per player, cafeteria only)
-- [x] Meeting screen with icon-based quick chat (14 messages, server-validated)
-- [x] 30s discussion + 20s voting phases
+- [x] Emergency meeting button (1 use per player, cafeteria only, blocked during sabotage)
+- [x] Meeting screen with icon-based quick chat (20 messages in 6 categories, server-validated)
+- [x] Configurable discussion + voting phases
 - [x] Vote tallying (most votes = sent home, ties = no ejection)
+- [x] Ejection float-away animation
 - [x] Win conditions: crew wins by tasks/eject, tagger wins by outnumbering
 - [x] Game over screen with roles revealed
-- [x] Leave Game button + clean disconnect handling
 
 ### Phase 5: AI Players ✅
 - [x] Bots can be added/removed in lobby
 - [x] Kid-friendly AI names (Astro, Cosmo, Nova, Pixel, Zippy, Blip, Fizz, Boop...)
-- [x] BFS pathfinding on a 13-node waypoint graph (room + hallway centers)
-- [x] AI crewmate — navigates to tasks, "completes" them after a delay, reports bodies
-- [x] AI tagger — fakes tasks, hunts alive players, freezes when no witnesses within 250 units
-- [x] AI voting (random with skip bias, never votes for self)
-- [x] AI sends quick chat messages during meetings
+- [x] BFS pathfinding on a 23-node waypoint graph (room centers + secondary points + hallways)
+- [x] Stuck detection — re-routes to nearest waypoint after 1s of no movement
+- [x] AI crewmate — navigates to tasks, completes them, reports bodies, fixes sabotage (50% chance)
+- [x] AI tagger — fakes tasks, hunts alive players, freezes when no witnesses, triggers sabotage
+- [x] Suspicion-based AI voting (seen near body = very sus, unseen = moderately sus)
+- [x] Contextual AI chat (crewmates share location/accuse, taggers deflect)
 - [x] Easy/normal difficulty (witness check on Normal)
 
-### Phase 6: Polish ⬜
-- [ ] Sound effects (footsteps, chimes, freeze, meeting bell, win/lose)
-- [ ] Animations (player bobbing, station glow, confetti, countdown)
-- [ ] Tutorial (illustrated slides for first-time players)
-- [ ] Accessibility (aria labels, color-blind shape badges, sound toggle)
-- [ ] Settings menu
-- [ ] Room ambient lighting per area
+### Phase 6: Polish + Sabotage ✅
+- [x] Sound effects (click, freeze, meeting bell, task complete, sabotage, meltdown alarm)
+- [x] Background music (procedural, toggleable)
+- [x] 3-2-1-GO countdown animation at game start
+- [x] Walking bob animation + directional pixel art sprites
+- [x] Settings menu (sound, music, touch controls)
+- [x] Color-blind shape badges on players
+- [x] Room configuration in lobby (tasks, discussion/voting time, tag cooldown)
+- [x] Persistent player names via localStorage
+- [x] iPad/mobile fixes (orientation resize, audio unlock, touch detection)
+- [x] **Sabotage system:**
+  - [x] 💡 Lights Out — reduced vision, fix in Reactor
+  - [x] 📡 Comms Down — hides task list, fix in Navigation
+  - [x] 🌡️ Meltdown — 2-min countdown, fix Engine + Reactor (both required), once per game
+  - [x] 45s cooldown for minor sabotages, HUD buttons for tagger
+  - [x] Visual effects (vignette, static, red pulse)
+  - [x] FIX button for crewmates near fix stations
+  - [x] Emergency meetings blocked during sabotage
+
+### Phase 7: Art & Visuals (in progress)
+- [x] Pixel art character sprites (32x32, 6 colors, front + back views)
+- [x] Walk cycle animation (3-frame: stand, left step, right step)
+- [ ] Side-view sprites (left/right directions)
+- [ ] Frozen/tagged sprite frame
+- [ ] Custom pixel art map (replacing programmatic room rendering)
+- [ ] Map props as pixel art (replacing Graphics-drawn furniture)
 
 ---
 
