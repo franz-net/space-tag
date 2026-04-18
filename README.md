@@ -2,6 +2,8 @@
 
 > A kid-friendly multiplayer social deduction game inspired by Among Us.
 
+**[Play now at space-tag.franz-e.net](https://space-tag.franz-e.net)**
+
 ## Why this exists
 
 My son wanted to play **Among Us**. It's a fantastic game — but as a parent, I had concerns.
