@@ -1,7 +1,16 @@
-import { Container, Graphics } from "pixi.js";
-import { COLOR_HEX, type PlayerColor } from "@/lib/protocol";
+import { Container, Sprite, Texture, Rectangle } from "pixi.js";
+import type { PlayerColor } from "@/lib/protocol";
 
-const BODY_RADIUS = 14; // slightly smaller than alive player (16)
+const FRAME_SIZE = 32;
+const COLOR_ROW: Record<PlayerColor, number> = {
+  red: 0,
+  blue: 1,
+  green: 2,
+  yellow: 3,
+  purple: 4,
+  orange: 5,
+};
+const FROZEN_COL = 12;
 
 interface BodySprite {
   container: Container;
@@ -46,7 +55,7 @@ export class BodyRenderer {
         const s = this.sprites.get(id);
         if (s) {
           this.container.removeChild(s.container);
-          s.container.destroy();
+          s.container.destroy({ children: true });
         }
         this.sprites.delete(id);
       }
@@ -56,30 +65,18 @@ export class BodyRenderer {
   private createBody(bodyId: string): BodySprite {
     const c = new Container();
 
-    const colorKey = this.colors[bodyId];
-    const hex = colorKey
-      ? parseInt(COLOR_HEX[colorKey].replace("#", ""), 16)
-      : 0x888888;
+    const colorKey = this.colors[bodyId] ?? "red";
+    const row = COLOR_ROW[colorKey];
 
-    // Body — slightly squashed oval, smaller than alive player
-    const body = new Graphics();
-    body.ellipse(0, 0, BODY_RADIUS, BODY_RADIUS - 3);
-    body.fill(hex);
-    body.ellipse(0, 0, BODY_RADIUS, BODY_RADIUS - 3);
-    body.stroke({ color: 0x000000, width: 2 });
-    c.addChild(body);
+    const sheetTex = Texture.from("/sprites.png");
+    const frozenTex = new Texture({
+      source: sheetTex.source,
+      frame: new Rectangle(FROZEN_COL * FRAME_SIZE, row * FRAME_SIZE, FRAME_SIZE, FRAME_SIZE),
+    });
 
-    // Ice halo — just a touch larger than the body
-    const ice = new Graphics();
-    ice.ellipse(0, 0, BODY_RADIUS + 2, BODY_RADIUS - 1);
-    ice.fill({ color: 0x93c5fd, alpha: 0.55 });
-    c.addChild(ice);
-
-    // Snowflake icon on top
-    const snowflake = new Graphics();
-    snowflake.circle(0, -2, 3);
-    snowflake.fill(0xffffff);
-    c.addChild(snowflake);
+    const sprite = new Sprite(frozenTex);
+    sprite.anchor.set(0.5);
+    c.addChild(sprite);
 
     this.container.addChild(c);
 
