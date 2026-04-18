@@ -50,8 +50,13 @@ interface PlayerSpriteData {
   walkFrame: number;   // index into WALK_CYCLE
 }
 
-// Cached textures per color, created once from the spritesheet
+// Cached textures per color, created once from the spritesheet.
+// Must be cleared when the engine is destroyed (textures become invalid).
 let textureCache: Map<PlayerColor, ColorTextures> | null = null;
+
+export function clearTextureCache() {
+  textureCache = null;
+}
 
 function cutFrame(source: Texture, col: number, row: number): Texture {
   return new Texture({

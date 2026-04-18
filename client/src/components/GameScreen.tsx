@@ -151,12 +151,16 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
     //     re-resize again on a short delay to catch the new viewport
     //   - `visualViewport.resize` catches iOS keyboard show/hide and
     //     pinch-zoom, which `resize` misses on iPad
+    let lastW = 0;
+    let lastH = 0;
     const doResize = () => {
       if (engineRef.current && containerRef.current) {
-        engineRef.current.resize(
-          containerRef.current.clientWidth,
-          containerRef.current.clientHeight
-        );
+        const w = containerRef.current.clientWidth;
+        const h = containerRef.current.clientHeight;
+        if (w === lastW && h === lastH) return;
+        lastW = w;
+        lastH = h;
+        engineRef.current.resize(w, h);
       }
     };
     const handleOrientationChange = () => {

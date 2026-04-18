@@ -1,6 +1,6 @@
 import { Application, Assets, Container } from "pixi.js";
 import { MapRenderer, type GameMapData } from "./MapRenderer";
-import { PlayerManager } from "./PlayerManager";
+import { PlayerManager, clearTextureCache } from "./PlayerManager";
 import { Camera } from "./Camera";
 import { FogOfWar } from "./FogOfWar";
 import { InputHandler } from "./InputHandler";
@@ -362,6 +362,7 @@ export class Engine {
 
   destroy() {
     this.input?.destroy();
+    clearTextureCache();
     if (this.initialized) {
       this.app.destroy(true, { children: true });
     }
