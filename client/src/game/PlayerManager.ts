@@ -26,8 +26,9 @@ const WALK_FRAME_DURATION = 8; // engine ticks per animation frame (~133ms at 60
 type Direction = "down" | "up" | "left" | "right";
 
 interface ColorTextures {
-  down: Texture[];  // cols 0,1,2
-  up: Texture[];    // cols 3,4,5
+  down: Texture[];    // cols 0,1,2
+  up: Texture[];      // cols 3,4,5
+  frozen: Texture;    // col 12
 }
 
 interface PlayerSpriteData {
@@ -64,8 +65,9 @@ function getTextures(baseTexture: Texture): Map<PlayerColor, ColorTextures> {
   textureCache = new Map();
   for (const [color, row] of Object.entries(COLOR_ROW) as [PlayerColor, number][]) {
     textureCache.set(color, {
-      down: [cutFrame(baseTexture, 0, row), cutFrame(baseTexture, 1, row), cutFrame(baseTexture, 2, row)],
-      up:   [cutFrame(baseTexture, 3, row), cutFrame(baseTexture, 4, row), cutFrame(baseTexture, 5, row)],
+      down:   [cutFrame(baseTexture, 0, row), cutFrame(baseTexture, 1, row), cutFrame(baseTexture, 2, row)],
+      up:     [cutFrame(baseTexture, 3, row), cutFrame(baseTexture, 4, row), cutFrame(baseTexture, 5, row)],
+      frozen: cutFrame(baseTexture, 12, row),
     });
   }
   return textureCache;
@@ -181,6 +183,10 @@ export class PlayerManager {
         sprite.frozen = isFrozen;
         sprite.nameLabel.alpha = isFrozen ? 0.4 : 1.0;
         sprite.container.scale.set(isFrozen ? 0.7 : 1.0);
+        if (isFrozen) {
+          sprite.sprite.texture = sprite.textures.frozen;
+          sprite.sprite.scale.x = 1;
+        }
       }
     }
   }
@@ -237,8 +243,8 @@ export class PlayerManager {
       const frameIdx = WALK_CYCLE[sprite.walkFrame];
 
       // Pick texture set and flip based on direction
-      // For left/right without dedicated side sprites, use front with flip
-      switch (sprite.direction) {
+      // Frozen players keep the frozen texture applied in setFrozen()
+      if (!sprite.frozen) switch (sprite.direction) {
         case "down":
           sprite.sprite.texture = sprite.textures.down[frameIdx];
           sprite.sprite.scale.x = 1;
