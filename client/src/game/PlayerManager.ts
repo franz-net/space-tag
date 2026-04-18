@@ -157,6 +157,21 @@ export class PlayerManager {
         sprite.targetY = pos.y;
       }
     }
+
+    // Remove sprites for players no longer in the server state
+    for (const id of this.sprites.keys()) {
+      if (!(id in positions)) {
+        this.removePlayer(id);
+      }
+    }
+  }
+
+  private removePlayer(id: string) {
+    const sprite = this.sprites.get(id);
+    if (!sprite) return;
+    this.container.removeChild(sprite.container);
+    sprite.container.destroy({ children: true });
+    this.sprites.delete(id);
   }
 
   setFrozen(frozenIds: Set<string>) {
