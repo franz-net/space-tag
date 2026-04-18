@@ -212,9 +212,12 @@ func AITick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 								log.Printf("ai task complete broadcast panic: %v", rec)
 							}
 						}()
+						game := r.Game
+						if game == nil {
+							return
+						}
 						for _, id := range r.snapshotPlayerIDs() {
-							game := r.Game
-							if game == nil {
+							if r.Game == nil {
 								return
 							}
 							tasks := game.Tasks.GetPlayerTasks(id)
@@ -546,6 +549,9 @@ func aiTaggerTryTag(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.T
 				log.Printf("ai tag broadcast panic: %v", rec)
 			}
 		}()
+		if r.Game == nil {
+			return
+		}
 		r.broadcast(MsgPlayerFrozen, PlayerFrozenPayload{
 			PlayerID: victimID,
 			Position: bodyPos,

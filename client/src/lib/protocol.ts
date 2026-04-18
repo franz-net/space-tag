@@ -33,6 +33,7 @@ export type MsgType =
   | "sabotage_start"
   | "sabotage_end"
   | "sabotage_fix"
+  | "meeting_phase"
   | "error";
 
 export interface Envelope {
@@ -165,6 +166,11 @@ export interface MeetingEndPayload {
   votes: Record<string, string>;
   ejectedId: string;
   wasTagger: boolean;
+}
+
+export interface MeetingPhasePayload {
+  phase: string;
+  duration: number;
 }
 
 export interface CooldownPayload {

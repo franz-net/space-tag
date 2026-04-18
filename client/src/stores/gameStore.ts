@@ -89,6 +89,7 @@ interface GameState {
   freezePlayer: (id: string) => void;
   setCooldown: (seconds: number) => void;
   startMeeting: (payload: MeetingStartPayload) => void;
+  setMeetingPhase: (phase: "voting", duration: number) => void;
   addChatMessage: (msg: ChatMessagePayload) => void;
   setMyVote: (targetId: string) => void;
   recordVoteCast: (voterId: string) => void;
@@ -252,6 +253,12 @@ export const useGameStore = create<GameState>((set) => ({
       votedPlayers: new Set(),
       meetingResult: null,
       activeTask: null, // close any active task
+    }),
+
+  setMeetingPhase: (phase, duration) =>
+    set({
+      meetingPhase: phase,
+      meetingPhaseEnd: Date.now() + duration * 1000,
     }),
 
   addChatMessage: (msg) =>

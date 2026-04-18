@@ -77,6 +77,11 @@ func (m *Meeting) CastVote(voterID, targetID string) bool {
 		return false
 	}
 
+	// Already voted — no changing your mind
+	if _, already := m.Votes[voterID]; already {
+		return false
+	}
+
 	// Target must be alive (or empty for skip)
 	if targetID != "" && !m.isAlive(targetID) {
 		return false

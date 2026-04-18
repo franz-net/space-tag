@@ -175,39 +175,41 @@ func (r *Room) removePlayer(playerID string) {
 		}
 	}
 
-	// Clean up game state too if a game is in progress
-	hasGame := r.Game != nil
+	// Capture game pointer under room lock — even if r.Game is set to nil
+	// concurrently by endGame, the captured pointer remains valid.
+	game := r.Game
 	r.mu.Unlock()
 
-	if hasGame {
-		r.Game.mu.Lock()
-		delete(r.Game.Positions, playerID)
-		delete(r.Game.MoveInputs, playerID)
-		delete(r.Game.Frozen, playerID)
-		delete(r.Game.BodyPos, playerID)
-		delete(r.Game.BodyReported, playerID)
-		delete(r.Game.UsedEmergency, playerID)
+	if game != nil {
+		game.mu.Lock()
+		delete(game.Positions, playerID)
+		delete(game.MoveInputs, playerID)
+		delete(game.Frozen, playerID)
+		delete(game.BodyPos, playerID)
+		delete(game.BodyReported, playerID)
+		delete(game.UsedEmergency, playerID)
 		// Decrement task total if they had crewmate tasks
-		role := r.Game.Roles[playerID]
-		if role == RoleCrewmate && r.Game.Tasks != nil {
-			tasks := r.Game.Tasks.Assignments[playerID]
+		role := game.Roles[playerID]
+		if role == RoleCrewmate && game.Tasks != nil {
+			tasks := game.Tasks.Assignments[playerID]
 			for _, t := range tasks {
 				if !t.Completed {
-					r.Game.Tasks.TotalTasks--
+					game.Tasks.TotalTasks--
 				}
 			}
-			delete(r.Game.Tasks.Assignments, playerID)
+			delete(game.Tasks.Assignments, playerID)
 		}
-		delete(r.Game.Roles, playerID)
-		r.Game.mu.Unlock()
+		delete(game.Roles, playerID)
+		game.mu.Unlock()
 	}
 
 	// Clean up empty rooms
 	r.mu.Lock()
 	if len(r.Players) == 0 {
+		gameRef := r.Game
 		r.mu.Unlock()
-		if r.Game != nil {
-			r.Game.Stop()
+		if gameRef != nil {
+			gameRef.Stop()
 		}
 		roomsMu.Lock()
 		delete(rooms, r.Code)

@@ -22,6 +22,7 @@ import type {
   VoteCastPayload,
   MeetingEndPayload,
   CooldownPayload,
+  MeetingPhasePayload,
   SabotageStartPayload,
   ErrorPayload,
 } from "@/lib/protocol";
@@ -38,6 +39,7 @@ export default function Home() {
     freezePlayer,
     setCooldown,
     startMeeting,
+    setMeetingPhase,
     addChatMessage,
     recordVoteCast,
     endMeeting,
@@ -101,6 +103,11 @@ export default function Home() {
         case "meeting_start": {
           sounds.meetingStart();
           startMeeting(payload as MeetingStartPayload);
+          break;
+        }
+        case "meeting_phase": {
+          const mp = payload as MeetingPhasePayload;
+          setMeetingPhase(mp.phase as "voting", mp.duration);
           break;
         }
         case "chat_message": {
@@ -173,6 +180,7 @@ export default function Home() {
       freezePlayer,
       setCooldown,
       startMeeting,
+      setMeetingPhase,
       addChatMessage,
       recordVoteCast,
       endMeeting,

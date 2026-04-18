@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -14,6 +15,10 @@ const (
 	pongWait       = 60 * time.Second
 	pingPeriod     = (pongWait * 9) / 10
 	maxMessageSize = 4096
+
+	// Rate limiting: token bucket — 30 messages per second burst, refills at 20/s.
+	rateBurst  = 30
+	rateRefill = 20 // tokens per second
 )
 
 type Client struct {
@@ -22,6 +27,26 @@ type Client struct {
 	send     chan []byte
 	id       string
 	roomCode string
+
+	// Rate limiting (token bucket)
+	rateTokens   float64
+	rateLastTime time.Time
+}
+
+// rateAllow consumes one token, returning false if the client is over the limit.
+func (c *Client) rateAllow() bool {
+	now := time.Now()
+	elapsed := now.Sub(c.rateLastTime).Seconds()
+	c.rateLastTime = now
+	c.rateTokens += elapsed * rateRefill
+	if c.rateTokens > rateBurst {
+		c.rateTokens = rateBurst
+	}
+	if c.rateTokens < 1 {
+		return false
+	}
+	c.rateTokens--
+	return true
 }
 
 func (c *Client) readPump() {
@@ -29,6 +54,9 @@ func (c *Client) readPump() {
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
+
+	c.rateTokens = rateBurst
+	c.rateLastTime = time.Now()
 
 	c.conn.SetReadLimit(maxMessageSize)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -41,6 +69,10 @@ func (c *Client) readPump() {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			break
+		}
+		if !c.rateAllow() {
+			// Drop the message silently — client is sending too fast
+			continue
 		}
 		c.handleMessage(message)
 	}
@@ -131,9 +163,25 @@ func (c *Client) handleMessage(raw []byte) {
 	}
 }
 
+const maxPlayerNameLen = 16
+
+// sanitizeName trims whitespace and caps length.
+func sanitizeName(name string) string {
+	name = strings.TrimSpace(name)
+	if len(name) > maxPlayerNameLen {
+		name = name[:maxPlayerNameLen]
+	}
+	return name
+}
+
 func (c *Client) handleCreateRoom(payload json.RawMessage) {
 	var p CreateRoomPayload
-	if err := json.Unmarshal(payload, &p); err != nil || p.PlayerName == "" {
+	if err := json.Unmarshal(payload, &p); err != nil {
+		c.sendEnvelope(MsgError, ErrorPayload{Message: "Please enter your name"})
+		return
+	}
+	p.PlayerName = sanitizeName(p.PlayerName)
+	if p.PlayerName == "" {
 		c.sendEnvelope(MsgError, ErrorPayload{Message: "Please enter your name"})
 		return
 	}
@@ -149,7 +197,13 @@ func (c *Client) handleCreateRoom(payload json.RawMessage) {
 
 func (c *Client) handleJoinRoom(payload json.RawMessage) {
 	var p JoinRoomPayload
-	if err := json.Unmarshal(payload, &p); err != nil || p.PlayerName == "" || p.RoomCode == "" {
+	if err := json.Unmarshal(payload, &p); err != nil {
+		c.sendEnvelope(MsgError, ErrorPayload{Message: "Please enter your name and room code"})
+		return
+	}
+	p.PlayerName = sanitizeName(p.PlayerName)
+	p.RoomCode = strings.TrimSpace(p.RoomCode)
+	if p.PlayerName == "" || p.RoomCode == "" {
 		c.sendEnvelope(MsgError, ErrorPayload{Message: "Please enter your name and room code"})
 		return
 	}
@@ -947,6 +1001,12 @@ func runMeetingTimeline(room *Room, meeting *Meeting, discTime, voteTime float64
 	// Discussion phase
 	time.Sleep(time.Duration(discTime * float64(time.Second)))
 	meeting.SetPhase("voting")
+
+	// Notify clients that voting has begun (authoritative, no clock drift)
+	room.broadcast(MsgMeetingPhase, MeetingPhasePayload{
+		Phase:    "voting",
+		Duration: voteTime,
+	})
 
 	// Voting phase
 	time.Sleep(time.Duration(voteTime * float64(time.Second)))

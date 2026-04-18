@@ -39,6 +39,7 @@ const (
 	MsgSabotageStart  MsgType = "sabotage_start"  // server→all: sabotage began
 	MsgSabotageEnd    MsgType = "sabotage_end"    // server→all: sabotage cleared
 	MsgSabotageFix    MsgType = "sabotage_fix"    // client→server: crewmate fixes
+	MsgMeetingPhase   MsgType = "meeting_phase"   // server→all: phase changed
 )
 
 type Envelope struct {
@@ -158,6 +159,11 @@ type MeetingEndPayload struct {
 	Votes      map[string]string `json:"votes"`     // voterID -> targetID ("" = skip)
 	EjectedID  string            `json:"ejectedId"` // empty if no one ejected
 	WasTagger  bool              `json:"wasTagger"` // true if ejected was the tagger
+}
+
+type MeetingPhasePayload struct {
+	Phase    string  `json:"phase"`    // "voting"
+	Duration float64 `json:"duration"` // seconds remaining in this phase
 }
 
 type CooldownPayload struct {

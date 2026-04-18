@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -21,11 +22,39 @@ func dbg(format string, args ...interface{}) {
 	}
 }
 
+// allowedOrigins is populated from the ALLOWED_ORIGINS env var (comma-separated).
+// If empty or unset, all origins are allowed (development mode).
+var allowedOrigins []string
+
+func initAllowedOrigins() {
+	raw := os.Getenv("ALLOWED_ORIGINS")
+	if raw == "" {
+		return
+	}
+	for _, o := range strings.Split(raw, ",") {
+		o = strings.TrimSpace(o)
+		if o != "" {
+			allowedOrigins = append(allowedOrigins, o)
+		}
+	}
+	log.Printf("Allowed WebSocket origins: %v", allowedOrigins)
+}
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // allow all origins in dev
+		if len(allowedOrigins) == 0 {
+			return true // dev mode — allow all
+		}
+		origin := r.Header.Get("Origin")
+		for _, allowed := range allowedOrigins {
+			if origin == allowed {
+				return true
+			}
+		}
+		log.Printf("Rejected WebSocket from origin: %s", origin)
+		return false
 	},
 }
 
@@ -61,6 +90,8 @@ func main() {
 	if Debug {
 		log.Println("Debug logging ENABLED")
 	}
+
+	initAllowedOrigins()
 
 	hub := newHub()
 	go hub.run()

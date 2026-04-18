@@ -488,46 +488,6 @@ func (gs *GameState) separatePlayersAlive() {
 	}
 }
 
-// separatePlayers pushes any overlapping players away from each other
-func (gs *GameState) separatePlayers() {
-	minDist := PlayerRadius * 2
-	ids := make([]string, 0, len(gs.Positions))
-	for id := range gs.Positions {
-		ids = append(ids, id)
-	}
-
-	for i := 0; i < len(ids); i++ {
-		for j := i + 1; j < len(ids); j++ {
-			posA := gs.Positions[ids[i]]
-			posB := gs.Positions[ids[j]]
-
-			dx := posB.X - posA.X
-			dy := posB.Y - posA.Y
-			distSq := dx*dx + dy*dy
-
-			if distSq < minDist*minDist && distSq > 0.001 {
-				dist := math.Sqrt(distSq)
-				overlap := minDist - dist
-				// Normalize and push each player half the overlap distance
-				nx := dx / dist
-				ny := dy / dist
-				push := overlap * 0.5
-
-				newA := Vec2{posA.X - nx*push, posA.Y - ny*push}
-				newB := Vec2{posB.X + nx*push, posB.Y + ny*push}
-
-				// Only apply if still walkable
-				if gs.Map.IsWalkable(newA, PlayerRadius) {
-					gs.Positions[ids[i]] = newA
-				}
-				if gs.Map.IsWalkable(newB, PlayerRadius) {
-					gs.Positions[ids[j]] = newB
-				}
-			}
-		}
-	}
-}
-
 func (gs *GameState) GetPositions() map[string]Vec2 {
 	gs.mu.RLock()
 	defer gs.mu.RUnlock()
