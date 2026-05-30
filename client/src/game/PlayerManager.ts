@@ -28,6 +28,8 @@ type Direction = "down" | "up" | "left" | "right";
 interface ColorTextures {
   down: Texture[];    // cols 0,1,2
   up: Texture[];      // cols 3,4,5
+  left: Texture[];    // cols 6,7,8
+  right: Texture[];   // cols 9,10,11
   frozen: Texture;    // col 12
 }
 
@@ -72,6 +74,8 @@ function getTextures(baseTexture: Texture): Map<PlayerColor, ColorTextures> {
     textureCache.set(color, {
       down:   [cutFrame(baseTexture, 0, row), cutFrame(baseTexture, 1, row), cutFrame(baseTexture, 2, row)],
       up:     [cutFrame(baseTexture, 3, row), cutFrame(baseTexture, 4, row), cutFrame(baseTexture, 5, row)],
+      left:   [cutFrame(baseTexture, 6, row), cutFrame(baseTexture, 7, row), cutFrame(baseTexture, 8, row)],
+      right:  [cutFrame(baseTexture, 9, row), cutFrame(baseTexture, 10, row), cutFrame(baseTexture, 11, row)],
       frozen: cutFrame(baseTexture, 12, row),
     });
   }
@@ -259,11 +263,11 @@ export class PlayerManager {
           sprite.sprite.scale.x = 1;
           break;
         case "left":
-          sprite.sprite.texture = sprite.textures.down[frameIdx];
-          sprite.sprite.scale.x = -1;
+          sprite.sprite.texture = sprite.textures.left[frameIdx];
+          sprite.sprite.scale.x = 1;
           break;
         case "right":
-          sprite.sprite.texture = sprite.textures.down[frameIdx];
+          sprite.sprite.texture = sprite.textures.right[frameIdx];
           sprite.sprite.scale.x = 1;
           break;
       }
