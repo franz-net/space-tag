@@ -97,3 +97,45 @@ func TestMeetingEndResendsTagCooldown(t *testing.T) {
 		t.Errorf("crewmate was sent cooldowns %+v", cds)
 	}
 }
+
+func TestReportedBodyClearedAfterMeeting(t *testing.T) {
+	if testing.Short() {
+		t.Skip("waits for the 3s meeting reveal")
+	}
+	roles := map[string]Role{"t": RoleTagger, "a": RoleCrewmate, "b": RoleCrewmate, "c": RoleCrewmate}
+	room, gs := newTestGame(roles, nil)
+	clients := attachTestClients(t, room, "t", "a")
+
+	gs.Positions["t"] = Vec2{300, 300}
+	gs.Positions["b"] = Vec2{330, 300}
+	gs.Positions["c"] = Vec2{1900, 1000}
+	gs.Positions["a"] = Vec2{360, 300}
+	if _, ok := gs.TryTag("t", "b", time.Now()); !ok {
+		t.Fatal("setup: tag failed")
+	}
+
+	clients["a"].handleReportBody()
+	if gs.Meeting == nil {
+		t.Fatal("report next to a fresh body didn't start a meeting")
+	}
+	meeting := gs.Meeting
+	runMeetingTimeline(room, meeting, 0, 0)
+
+	if _, ok := gs.GetBodies()["b"]; ok {
+		t.Fatal("reported body is still on the map after the meeting")
+	}
+
+	// A new body right next to where the old one was can still be reported
+	gs.mu.Lock()
+	gs.TagCooldowns["t"] = time.Time{}
+	gs.Positions["t"] = Vec2{300, 300}
+	gs.Positions["c"] = Vec2{330, 300}
+	gs.Positions["a"] = Vec2{360, 300}
+	gs.mu.Unlock()
+	if _, ok := gs.TryTag("t", "c", time.Now()); !ok {
+		t.Fatal("setup: second tag failed")
+	}
+	if _, ok := gs.TryReportBody("a"); !ok {
+		t.Fatal("couldn't report the second body")
+	}
+}

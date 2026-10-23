@@ -1060,6 +1060,12 @@ func runMeetingTimeline(room *Room, meeting *Meeting, discTime, voteTime float64
 	if game != nil {
 		game.mu.Lock()
 		game.Meeting = nil
+		// Reported bodies have been dealt with — clear them so they don't
+		// light up the REPORT button forever (the server would reject it).
+		// Unreported bodies stay put for someone to find.
+		for bodyID := range game.BodyReported {
+			delete(game.BodyPos, bodyID)
+		}
 		taggers := game.resetTagCooldownsLocked(time.Now().Add(TagCooldownAfterMeeting))
 		game.mu.Unlock()
 
