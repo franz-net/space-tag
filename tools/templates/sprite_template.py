@@ -31,7 +31,7 @@ ROWS = len(COLORS)
 W = COLS * FRAME   # 416
 H = ROWS * FRAME   # 192
 
-BASE = "/home/franz/Dropbox/IT/gameX"
+BASE = os.path.dirname(os.path.abspath(__file__))
 
 try:
     font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 8)

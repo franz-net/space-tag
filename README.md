@@ -166,10 +166,15 @@ space-tag/
 │   │   │   └── debug.ts
 │   │   └── stores/gameStore.ts
 │   └── public/
-│       └── sprites.png               # Character spritesheet (32x32, 6 colors)
+│       └── sprites.png               # Character spritesheet (13x6 grid of 32x32 frames)
 ├── assets/                            # Source art files
 │   ├── space-tag-character-sprites.aseprite  # Aseprite source
-│   └── space-tag-character-sprites.png       # Exported spritesheet
+│   ├── space-tag-character-sprites.png       # High-res export (7x scale)
+│   └── astro-front-ref.png                   # Character reference art
+├── tools/templates/                   # Python (Pillow) scripts that generate art templates
+│   ├── sprite_template.py            # Spritesheet grid + labeled guide
+│   ├── map_template.py               # Full-size map layout with collision boxes
+│   └── map_template_pixelart.py      # Downscaled map grid for pixel art
 └── .github/workflows/                 # CI/CD to Railway
 ```
 
@@ -267,8 +272,8 @@ These rules drive every decision:
 ### Phase 7: Art & Visuals (in progress)
 - [x] Pixel art character sprites (32x32, 6 colors, front + back views)
 - [x] Walk cycle animation (3-frame: stand, left step, right step)
-- [ ] Side-view sprites (left/right directions)
-- [ ] Frozen/tagged sprite frame
+- [x] Side-view sprites (left/right directions)
+- [x] Frozen/tagged sprite frame (used for bodies left behind)
 - [ ] Custom pixel art map (replacing programmatic room rendering)
 - [ ] Map props as pixel art (replacing Graphics-drawn furniture)
 
@@ -276,7 +281,7 @@ These rules drive every decision:
 
 ## Running locally
 
-You'll need **Go 1.22+** and **Node.js 18+**.
+You'll need **Go 1.24+** and **Node.js 20+**.
 
 ```bash
 # Terminal 1 — Go server (port 8080)
@@ -290,6 +295,18 @@ npm run dev
 ```
 
 Open http://localhost:3000 in two browser tabs (or your phone on the same network) to test multiplayer locally. Create a room in one tab, share the 4-letter code, join in the other.
+
+### Regenerating art templates
+
+The scripts in `tools/templates/` draw guide images that line up with the game's coordinates, so artists can paint right on top of them. They need Pillow (`pip install pillow`) and write their PNGs next to themselves:
+
+```bash
+python3 tools/templates/sprite_template.py
+python3 tools/templates/map_template.py
+python3 tools/templates/map_template_pixelart.py
+```
+
+If you change room bounds, obstacles, or stations in `server/gamemap.go`, `tasks.go`, or `sabotage.go`, update the coordinates in the map scripts to match.
 
 ## Contributing
 

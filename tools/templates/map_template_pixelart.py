@@ -2,6 +2,7 @@
 Each pixel here = 4x4 pixels in game. Draw at this size, the game
 upscales with nearest-neighbor (crisp pixels, no blur)."""
 
+import os
 from PIL import Image, ImageDraw, ImageFont
 
 SCALE = 4
@@ -103,7 +104,7 @@ for gy in range(0, H, 25):
     draw.line([(0, gy), (W, gy)], fill=(255, 255, 255, 20), width=1)
 
 # Save
-out_path = "/home/franz/Dropbox/IT/gameX/map_template_pixel.png"
+out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "map_template_pixel.png")
 img.save(out_path)
 print(f"Saved pixel art template to {out_path}")
 print(f"Size: {W}x{H}px (each pixel = {SCALE}x{SCALE} in game)")

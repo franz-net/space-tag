@@ -37,3 +37,6 @@ yarn-error.log*
 .turbo/
 coverage/
 dist/
+
+# Stray Next.js output (e.g. from running next in the wrong dir)
+.next/

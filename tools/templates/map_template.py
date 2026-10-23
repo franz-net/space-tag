@@ -2,6 +2,7 @@
 task stations, fix stations, spawn point, and waypoints — so an artist can
 draw on top of it and know everything lines up with the game's collision."""
 
+import os
 from PIL import Image, ImageDraw, ImageFont
 
 W, H = 2200, 1300
@@ -165,7 +166,7 @@ for gy in range(0, H, 100):
     draw.line([(0, gy), (W, gy)], fill=(255, 255, 255, 15), width=1)
 
 # Save
-out_path = "/home/franz/Dropbox/IT/gameX/map_template.png"
+out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "map_template.png")
 img.save(out_path)
 print(f"Saved template to {out_path}")
 print(f"Size: {W}x{H}px")
