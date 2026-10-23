@@ -13,6 +13,7 @@ export default function GameOverScreen({ send }: Props) {
   if (!gameOver) return null;
 
   const crewWon = gameOver.winner === "crew";
+  const taggerCount = gameOver.roles.filter((r) => r.role === "tagger").length;
 
   const handlePlayAgain = () => {
     // Stay in the same room — just dismiss the overlay and go back to the lobby
@@ -32,7 +33,9 @@ export default function GameOverScreen({ send }: Props) {
           {crewWon ? (
             <span className="text-blue-400">Crew saves the day!</span>
           ) : (
-            <span className="text-red-400">The Tagger wins!</span>
+            <span className="text-red-400">
+              {taggerCount > 1 ? "The Taggers win!" : "The Tagger wins!"}
+            </span>
           )}
         </h1>
 

@@ -21,6 +21,7 @@ export default function MeetingScreen({ send }: Props) {
     players,
     setMyVote,
     meetingResult,
+    myTeammates,
   } = useGameStore();
 
   const [now, setNow] = useState(() => Date.now());
@@ -188,7 +189,12 @@ export default function MeetingScreen({ send }: Props) {
               >
                 {player.name[0]?.toUpperCase()}
               </div>
-              <span className="text-white text-xs sm:text-sm font-medium truncate max-w-full">
+              <span
+                className={`text-xs sm:text-sm font-medium truncate max-w-full ${
+                  myTeammates.includes(player.id) ? "text-red-400" : "text-white"
+                }`}
+              >
+                {myTeammates.includes(player.id) && "🤝 "}
                 {player.name}
                 {player.id === myId && " (you)"}
               </span>

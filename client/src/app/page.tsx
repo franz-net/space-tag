@@ -66,7 +66,7 @@ export default function Home() {
         }
         case "game_started": {
           const gs = payload as GameStartedPayload;
-          setGameStarted(gs.role, gs.you);
+          setGameStarted(gs.role, gs.you, gs.teammates ?? []);
           break;
         }
         case "positions": {

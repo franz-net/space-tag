@@ -320,10 +320,13 @@ func (c *Client) handleStartGame() {
 		}
 		room.mu.RUnlock()
 
-		room.sendTo(id, MsgGameStarted, GameStartedPayload{
-			Role: role,
-			You:  id,
-		})
+		started := GameStartedPayload{Role: role, You: id}
+		if role == RoleTagger {
+			room.Game.mu.RLock()
+			started.Teammates = taggerPartners(room.Game.Roles, id)
+			room.Game.mu.RUnlock()
+		}
+		room.sendTo(id, MsgGameStarted, started)
 		// Send task assignments
 		room.sendTo(id, MsgTaskProgress, taskProgress[id])
 		// Send initial cooldown to the tagger
@@ -332,10 +335,6 @@ func (c *Client) handleStartGame() {
 		}
 	}
 
-	// Set initial tag cooldown so tagger can't immediately tag at start
-	room.Game.mu.Lock()
-	room.Game.TagCooldown = time.Now().Add(TagCooldownAfterMeeting)
-	room.Game.mu.Unlock()
 }
 
 func (c *Client) handleRoomSettings(payload json.RawMessage) {
@@ -377,6 +376,16 @@ func (c *Client) handleRoomSettings(payload json.RawMessage) {
 		s.VotingTime = 10
 	} else if s.VotingTime > 30 {
 		s.VotingTime = 30
+	}
+	switch s.Difficulty {
+	case "easy", "normal", "hard":
+	default:
+		s.Difficulty = "normal"
+	}
+	if s.Taggers < 1 {
+		s.Taggers = 1
+	} else if s.Taggers > 2 {
+		s.Taggers = 2
 	}
 	if s.TagCooldown < 10 {
 		s.TagCooldown = 10
@@ -663,8 +672,11 @@ func checkWinConditions(room *Room) bool {
 	crew, tagger := game.CountAlive()
 	dbg("checkWinConditions: crew=%d, tagger=%d", crew, tagger)
 
-	// Tagger wins if they outnumber or equal the crew (1 vs 1 or fewer)
-	if tagger > 0 && tagger >= crew {
+	// Taggers win when at most one crewmate is left (1 vs 1 with a single
+	// tagger). With two taggers this needs one more tag than plain
+	// "taggers >= crew" would, so 2 vs 4 isn't over after two quick tags;
+	// at 2 vs 2 the crew can still win by finishing tasks.
+	if tagger > 0 && crew <= 1 {
 		dbg("TAGGER WINS — calling endGame")
 		endGame(room, "tagger")
 		return true
@@ -831,11 +843,13 @@ func (c *Client) handleTagPlayer(payload json.RawMessage) {
 	// Send cooldown to tagger (using room settings)
 	room.Game.mu.RLock()
 	tagCD := room.Game.Settings.TagCooldown
+	partnerCDs := room.Game.partnerCooldownsLocked(c.id, time.Now())
 	room.Game.mu.RUnlock()
 	c.sendEnvelope(MsgCooldown, CooldownPayload{
 		Kind:    CooldownTag,
 		Seconds: tagCD,
 	})
+	room.sendPartnerCooldowns(partnerCDs)
 
 	// Check win conditions
 	dbg("calling checkWinConditions after tag")
@@ -1046,13 +1060,7 @@ func runMeetingTimeline(room *Room, meeting *Meeting, discTime, voteTime float64
 	if game != nil {
 		game.mu.Lock()
 		game.Meeting = nil
-		game.TagCooldown = time.Now().Add(TagCooldownAfterMeeting)
-		var taggers []string
-		for id, role := range game.Roles {
-			if role == RoleTagger && !game.Frozen[id] {
-				taggers = append(taggers, id)
-			}
-		}
+		taggers := game.resetTagCooldownsLocked(time.Now().Add(TagCooldownAfterMeeting))
 		game.mu.Unlock()
 
 		// Tell the tagger their button is cooling down again, or it

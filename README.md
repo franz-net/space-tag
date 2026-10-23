@@ -26,13 +26,13 @@ It's a small project built for one specific kid, but if it's useful to other par
 
 ## How the game works
 
-Players spawn in a 2D top-down spaceship with 6 rooms (Cafeteria, Medbay, Navigation, Engine, Storage, Reactor). One player is secretly the **Tagger**; the rest are **Crewmates**.
+Players spawn in a 2D top-down spaceship with 6 rooms (Cafeteria, Medbay, Navigation, Engine, Storage, Reactor). One player (or two, in a full room) is secretly the **Tagger**; the rest are **Crewmates**.
 
 - **Crewmates** wander the ship completing simple tap-and-drag mini-tasks (matching colors, connecting wires, tap targets, repeat-the-pattern). When all tasks are done, the crew wins.
 - **The Tagger** pretends to do tasks while secretly freezing crewmates one at a time (with a cooldown so they can't spam). The tagger can also trigger **sabotages** to disrupt the crew.
 - When someone finds a frozen friend, they hit **REPORT** and everyone gathers in the cafeteria for a **meeting**.
 - During meetings, players use **icon messages** to share suspicions and then **vote** on who to send home. Tied or no votes means no one is ejected.
-- Crew wins by **completing all tasks** OR **voting out the tagger**. Tagger wins if they freeze enough crewmates (or the **Meltdown** timer runs out).
+- Crew wins by **completing all tasks** OR **voting out the tagger**. Taggers win when only one crewmate is left unfrozen (or the **Meltdown** timer runs out).
 
 Frozen players become **ghosts**: they can move freely (no walls, no fog), see everything, and continue completing tasks — so getting tagged isn't a "you lose, sit out" punishment. Kids stay engaged.
 
@@ -42,7 +42,7 @@ Frozen players become **ghosts**: they can move freely (no walls, no fog), see e
 - Type your name on the home screen (saved automatically)
 - Click **Create Room** to start a new game, or enter a 4-letter code from a friend and click **Join**
 - You'll see a lobby with everyone in the room
-- The host can add bot players and adjust game settings (tasks, timers, cooldowns)
+- The host can add bot players and adjust game settings (tasks, timers, cooldowns, how smart the bots are, and 1 or 2 Taggers)
 
 ### 2. Start the game
 - The host clicks **Start Game** (need at least 2 players)
@@ -66,6 +66,7 @@ Frozen players become **ghosts**: they can move freely (no walls, no fog), see e
 - Pretend you're doing tasks so no one suspects you
 - When you're alone with a Crewmate, press the **TAG** button to freeze them
 - The TAG button has a **cooldown** so you can't spam it
+- With **2 Taggers**, you'll see your partner's name in red. You can't chat privately, but bot partners back you up: they never vote you out, they turn suspicion on whoever accuses you, and they may cut the lights when you're close to a crewmate. After either of you tags, you both wait for the cooldown.
 - Use **sabotages** to disrupt the crew:
   - 💡 **Lights Out** — shrinks everyone's vision (fix in Reactor)
   - 📡 **Comms Down** — hides the task list (fix in Navigation)
@@ -239,7 +240,7 @@ These rules drive every decision:
 - [x] Configurable discussion + voting phases
 - [x] Vote tallying (most votes = sent home, ties = no ejection)
 - [x] Ejection float-away animation
-- [x] Win conditions: crew wins by tasks/eject, tagger wins by outnumbering
+- [x] Win conditions: crew wins by tasks/eject, taggers win when one crewmate is left
 - [x] Game over screen with roles revealed
 
 ### Phase 5: AI Players ✅
@@ -255,7 +256,8 @@ These rules drive every decision:
 - [x] Suspicion-based voting — bots skip when they have no real evidence instead of guessing
 - [x] Contextual AI chat — the reporter says where the body was, witnesses say "I saw something" then accuse, everyone shares where they were; taggers deny, bandwagon, and lie about being at the scene
 - [x] Meeting screen shows where the frozen friend was found
-- [x] Easy/normal difficulty profiles (Easy: misses clues, tags in front of witnesses, sloppier choices) — not yet selectable in the lobby
+- [x] Easy / Normal / Hard bots, picked in the lobby (Easy: misses clues, tags in front of witnesses, slow at tasks; Hard: never careless, remembers suspicion longer, faster at tasks). No level lets bots see more than a human could.
+- [x] 2 Taggers (full room of 6): partners know each other, can't tag each other, and share a cooldown after each tag. Bot taggers back up their partner (human or bot) using only what they see and hear: no voting out the partner, counter-accusing their accusers, echoing the partner's accusations, spreading out, and Lights Out to help them strike
 
 ### Phase 6: Polish + Sabotage ✅
 - [x] Sound effects (click, freeze, meeting bell, task complete, sabotage, meltdown alarm)

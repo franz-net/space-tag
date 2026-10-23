@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"math"
+	"sort"
 	"sync"
 	"time"
 )
@@ -15,19 +16,19 @@ type GameState struct {
 	Positions        map[string]Vec2 // playerID -> position
 	MoveInputs       map[string]Vec2 // playerID -> direction vector (from client)
 	Tasks            *TasksState
-	Roles            map[string]Role     // playerID -> role
-	Frozen           map[string]bool     // playerID -> is frozen (true=dead/body)
-	BodyPos          map[string]Vec2     // bodyID -> position where body lies
-	BodyReported     map[string]bool     // bodyID -> has been reported
-	TagCooldown      time.Time           // earliest time tagger can tag again
-	UsedEmergency    map[string]bool     // playerID -> already used emergency
-	Meeting          *Meeting            // current meeting, nil if none
-	AIBrains         map[string]*AIBrain // playerID -> AI brain (only for AI players)
-	Room             *Room               // back-pointer for AI tick callbacks
-	Sabotage         *SabotageState      // current sabotage state
-	SabotageCooldown time.Time           // earliest time tagger can sabotage again
-	Settings         RoomSettings        // game settings from lobby
-	PlayerColors     map[string]string   // playerID -> color name (for AI chat)
+	Roles            map[string]Role      // playerID -> role
+	Frozen           map[string]bool      // playerID -> is frozen (true=dead/body)
+	BodyPos          map[string]Vec2      // bodyID -> position where body lies
+	BodyReported     map[string]bool      // bodyID -> has been reported
+	TagCooldowns     map[string]time.Time // taggerID -> earliest time they can tag again
+	UsedEmergency    map[string]bool      // playerID -> already used emergency
+	Meeting          *Meeting             // current meeting, nil if none
+	AIBrains         map[string]*AIBrain  // playerID -> AI brain (only for AI players)
+	Room             *Room                // back-pointer for AI tick callbacks
+	Sabotage         *SabotageState       // current sabotage state
+	SabotageCooldown time.Time            // earliest time tagger can sabotage again
+	Settings         RoomSettings         // game settings from lobby
+	PlayerColors     map[string]string    // playerID -> color name (for AI chat)
 	mu               sync.RWMutex
 	stopCh           chan struct{}
 }
@@ -71,7 +72,13 @@ func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role, aiIDs 
 
 	brains := make(map[string]*AIBrain, len(aiIDs))
 	for _, id := range aiIDs {
-		brains[id] = NewAIBrain(id, roles[id])
+		brains[id] = NewAIBrain(id, roles[id], ParseDifficulty(settings.Difficulty))
+	}
+	// Taggers know who their teammates are (but can't talk to them)
+	for id, ai := range brains {
+		if ai.Role == RoleTagger {
+			ai.Partners = taggerPartners(roles, id)
+		}
 	}
 
 	return &GameState{
@@ -83,6 +90,7 @@ func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role, aiIDs 
 		Frozen:           make(map[string]bool),
 		BodyPos:          make(map[string]Vec2),
 		BodyReported:     make(map[string]bool),
+		TagCooldowns:     make(map[string]time.Time),
 		UsedEmergency:    make(map[string]bool),
 		AIBrains:         brains,
 		Sabotage:         NewSabotageState(),
@@ -130,6 +138,52 @@ func (gs *GameState) CountAlive() (crew int, tagger int) {
 	return
 }
 
+// taggerPartners returns the other taggers in the game.
+func taggerPartners(roles map[string]Role, selfID string) []string {
+	var out []string
+	for id, role := range roles {
+		if role == RoleTagger && id != selfID {
+			out = append(out, id)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// teamTagGap is how long a partner waits after a team tag. At the default
+// factor of 1.0, two taggers tag no faster than one would; they just cover
+// more of the ship.
+func (gs *GameState) teamTagGap() time.Duration {
+	return time.Duration(gs.Settings.TagCooldown * TeamTagGapFactor * float64(time.Second))
+}
+
+// partnerCooldownsLocked returns the seconds left on each alive partner's
+// tag cooldown, to resend after a tag bumps them by teamTagGap.
+// Caller must hold gs.mu.
+func (gs *GameState) partnerCooldownsLocked(selfID string, now time.Time) map[string]float64 {
+	out := make(map[string]float64)
+	for _, p := range taggerPartners(gs.Roles, selfID) {
+		if !gs.Frozen[p] {
+			out[p] = math.Max(0, gs.TagCooldowns[p].Sub(now).Seconds())
+		}
+	}
+	return out
+}
+
+// resetTagCooldownsLocked puts every alive tagger on cooldown until `until`
+// (game start, after meetings) and returns their IDs. Caller must hold gs.mu.
+func (gs *GameState) resetTagCooldownsLocked(until time.Time) []string {
+	var taggers []string
+	for id, role := range gs.Roles {
+		if role == RoleTagger && !gs.Frozen[id] {
+			gs.TagCooldowns[id] = until
+			taggers = append(taggers, id)
+		}
+	}
+	sort.Strings(taggers)
+	return taggers
+}
+
 // TryTag attempts a tag from selfID to targetID. Returns frozen target ID and ok=true if successful.
 func (gs *GameState) TryTag(selfID, targetID string, now time.Time) (Vec2, bool) {
 	gs.mu.Lock()
@@ -148,12 +202,12 @@ func (gs *GameState) tagLocked(selfID, targetID string, now time.Time) (Vec2, bo
 	if gs.Frozen[targetID] {
 		return Vec2{}, false
 	}
-	// Cannot tag self
-	if selfID == targetID {
+	// Cannot tag self or a fellow tagger
+	if selfID == targetID || gs.Roles[targetID] == RoleTagger {
 		return Vec2{}, false
 	}
-	// Cooldown
-	if now.Before(gs.TagCooldown) {
+	// Cooldown (each tagger has their own)
+	if now.Before(gs.TagCooldowns[selfID]) {
 		return Vec2{}, false
 	}
 	// Range check
@@ -168,12 +222,17 @@ func (gs *GameState) tagLocked(selfID, targetID string, now time.Time) (Vec2, bo
 	// Freeze the target
 	gs.Frozen[targetID] = true
 	gs.BodyPos[targetID] = b
-	gs.TagCooldown = now.Add(time.Duration(gs.Settings.TagCooldown * float64(time.Second)))
+	gs.TagCooldowns[selfID] = now.Add(time.Duration(gs.Settings.TagCooldown * float64(time.Second)))
+	for _, p := range taggerPartners(gs.Roles, selfID) {
+		if gap := now.Add(gs.teamTagGap()); gs.TagCooldowns[p].Before(gap) {
+			gs.TagCooldowns[p] = gap
+		}
+	}
 	// Stop them moving
 	gs.MoveInputs[targetID] = Vec2{}
 
 	// Let nearby AI crewmates witness it
-	aiNotifyTag(gs, selfID, targetID)
+	aiNotifyTag(gs, selfID, targetID, now)
 
 	return b, true
 }

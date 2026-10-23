@@ -93,13 +93,21 @@ func pickAIChatMessage(gs *GameState, ai *AIBrain) string {
 		}
 	}
 
-	// Tagger: blend in. Deny if accused, otherwise pile onto whoever the
-	// group is already suspicious of.
+	// Tagger: blend in and back up any partner. Deny if accused, turn
+	// suspicion on whoever accused a partner, echo a partner's accusation,
+	// otherwise pile onto whoever the group already suspects.
 	if ai.AccusedMe > 0 && !ai.SaidNotMe {
 		ai.SaidNotMe = true
 		return "not_me"
 	}
-	if target, n := ai.mostAccused(alive); n > 0 {
+	if accuser := ai.partnerAccuser(alive); accuser != "" && !ai.SaidDefend {
+		ai.SaidDefend = true
+		return susMessage(gs, accuser)
+	}
+	if pick := ai.partnerPick(alive); pick != "" {
+		return susMessage(gs, pick)
+	}
+	if target, n := ai.mostAccused(ai.withoutPartners(alive)); n > 0 {
 		return susMessage(gs, target)
 	}
 	if ai.MeetingChats == 1 && ai.LastRoom != "" && rand.Float64() < 0.6 {
@@ -137,8 +145,19 @@ func pickAIVoteTarget(gs *GameState, ai *AIBrain) string {
 		}
 	}
 
-	// Tagger: bandwagon on whoever's been accused, otherwise skip or
+	// Tagger: never vote out a partner. Vote whoever accused a partner,
+	// then whoever a partner accused, then bandwagon; otherwise skip or
 	// throw a vote at a random crewmate.
+	candidates = ai.withoutPartners(candidates)
+	if len(candidates) == 0 {
+		return ""
+	}
+	if accuser := ai.partnerAccuser(candidates); accuser != "" {
+		return accuser
+	}
+	if pick := ai.partnerPick(candidates); pick != "" {
+		return pick
+	}
 	if target, n := ai.mostAccused(candidates); n > 0 {
 		return target
 	}

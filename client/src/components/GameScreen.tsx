@@ -19,7 +19,7 @@ interface GameScreenProps {
 }
 
 export default function GameScreen({ send, positionsRef }: GameScreenProps) {
-  const { myId, mapData, myTasks, gameOver, myRole, meeting, activeSabotage } =
+  const { myId, mapData, myTasks, gameOver, myRole, myTeammates, meeting, activeSabotage } =
     useGameStore();
   const isTouch = useIsTouch();
   const touchMode = useTouchMode();
@@ -139,6 +139,7 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
         if (state.myRole) {
           engine.setMyRole(state.myRole);
         }
+        engine.setTeammates(state.myTeammates);
         engine.setFrozen(state.frozenIds);
         engine.markReady();
         engineRef.current = engine;
@@ -185,6 +186,11 @@ export default function GameScreen({ send, positionsRef }: GameScreenProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapData, myId, onMove]);
+
+  // Fellow taggers: red names, no TAG button on them
+  useEffect(() => {
+    engineRef.current?.setTeammates(myTeammates);
+  }, [myTeammates]);
 
   // Update role on engine when it changes
   useEffect(() => {

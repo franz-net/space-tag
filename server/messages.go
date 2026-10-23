@@ -66,8 +66,9 @@ type RoomStatePayload struct {
 }
 
 type GameStartedPayload struct {
-	Role Role   `json:"role"`
-	You  string `json:"you"`
+	Role      Role     `json:"role"`
+	You       string   `json:"you"`
+	Teammates []string `json:"teammates,omitempty"` // other taggers (taggers only)
 }
 
 type PlayerEventPayload struct {

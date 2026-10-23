@@ -59,7 +59,7 @@ const SLIDES: Slide[] = [
   {
     emoji: "🏆",
     title: "How to win",
-    body: "Crew wins by doing all tasks OR voting out the Tagger. Tagger wins by freezing enough Crewmates. Have fun!",
+    body: "Crew wins by doing all tasks OR voting out the Tagger. Taggers win by freezing all but one Crewmate. Have fun!",
     bgColor: "from-green-900 to-emerald-900",
   },
 ];

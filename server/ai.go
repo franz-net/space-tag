@@ -25,18 +25,35 @@ type AIDifficulty int
 const (
 	AIEasy AIDifficulty = iota
 	AINormal
+	AIHard
 )
 
-// aiProfile holds the knobs that differ between difficulty levels.
+// ParseDifficulty maps the lobby setting to a profile (unknown -> Normal).
+func ParseDifficulty(s string) AIDifficulty {
+	switch s {
+	case "easy":
+		return AIEasy
+	case "hard":
+		return AIHard
+	}
+	return AINormal
+}
+
+// aiProfile holds the knobs that differ between difficulty levels. Bots
+// never see more than a human could at any level; harder bots just pay
+// closer attention, remember longer, and make fewer mistakes.
 type aiProfile struct {
-	NoticeChance float64 // chance a crewmate bot registers a clue it could see
-	Carelessness float64 // chance a tagger bot ignores witnesses for its next tag
-	ScoreNoise   float64 // random jitter on utility scores (higher = sloppier)
+	NoticeChance  float64 // chance a crewmate bot registers a clue it could see
+	Carelessness  float64 // chance a tagger bot ignores witnesses for its next tag
+	ScoreNoise    float64 // random jitter on utility scores (higher = sloppier)
+	SusDecay      float64 // suspicion kept after each meeting (witnessed tags stay)
+	TaskTimeScale float64 // multiplier on how long a bot stands at a task
 }
 
 var aiProfiles = map[AIDifficulty]aiProfile{
-	AIEasy:   {NoticeChance: 0.5, Carelessness: 1.0, ScoreNoise: 0.3},
-	AINormal: {NoticeChance: 1.0, Carelessness: 0.35, ScoreNoise: 0.1},
+	AIEasy:   {NoticeChance: 0.5, Carelessness: 1.0, ScoreNoise: 0.3, SusDecay: 0.4, TaskTimeScale: 1.25},
+	AINormal: {NoticeChance: 1.0, Carelessness: 0.35, ScoreNoise: 0.1, SusDecay: 0.5, TaskTimeScale: 1.0},
+	AIHard:   {NoticeChance: 1.0, Carelessness: 0.0, ScoreNoise: 0.05, SusDecay: 0.75, TaskTimeScale: 0.8},
 }
 
 type AIGoal int
@@ -81,6 +98,12 @@ type AIBrain struct {
 	SeenInRoom  map[string]string               // playerID -> room the bot last saw them in
 	SeenWith    map[string]map[string]time.Time // a -> b -> last time seen close together
 
+	// Tagger teamwork: partners are known, but taggers can't talk privately,
+	// so all cooperation comes from what the bot sees and hears in chat.
+	Partners       []string
+	PartnerTagSeen map[string]time.Time // partner -> last time I saw them tag
+	RoundStart     time.Time            // game start or last meeting end (everyone's cooldown reset)
+
 	// Tagger timing
 	LastTagAt      time.Time
 	Careless       bool // this tag, ignore witnesses (rolled after each tag)
@@ -91,13 +114,15 @@ type AIBrain struct {
 	MeetingVoted bool
 	MeetingChats int
 	LastChat     string
-	VoteDelay    time.Duration   // randomized so bots don't all vote at once
-	Accusations  map[string]int  // playerID -> times others accused them this meeting
-	HeardFrom    map[string]bool // "sender>target" pairs already counted
-	AccusedMe    int             // times someone accused this bot this meeting
-	BodyRoom     string          // where this meeting's body was found
+	VoteDelay    time.Duration              // randomized so bots don't all vote at once
+	Accusations  map[string]int             // playerID -> times others accused them this meeting
+	Accusers     map[string]map[string]bool // target -> who accused them this meeting
+	HeardFrom    map[string]bool            // "sender>target" pairs already counted
+	AccusedMe    int                        // times someone accused this bot this meeting
+	BodyRoom     string                     // where this meeting's body was found
 	SaidISaw     bool
 	SaidNotMe    bool
+	SaidDefend   bool // already stuck up for a partner this meeting
 }
 
 const (
@@ -116,12 +141,12 @@ const (
 	AITaskTimeMax = 12 * time.Second
 )
 
-func NewAIBrain(playerID string, role Role) *AIBrain {
+func NewAIBrain(playerID string, role Role, difficulty AIDifficulty) *AIBrain {
 	return &AIBrain{
-		Careless:       rand.Float64() < aiProfiles[AINormal].Carelessness,
+		Careless:       rand.Float64() < aiProfiles[difficulty].Carelessness,
 		PlayerID:       playerID,
 		Role:           role,
-		Difficulty:     AINormal,
+		Difficulty:     difficulty,
 		Goal:           GoalIdle,
 		Avoid:          make(map[string]time.Time),
 		Suspicion:      make(map[string]float64),
@@ -132,7 +157,10 @@ func NewAIBrain(playerID string, role Role) *AIBrain {
 		SeenInRoom:     make(map[string]string),
 		SeenWith:       make(map[string]map[string]time.Time),
 		LastSabotageAt: time.Now(),
+		RoundStart:     time.Now(),
+		PartnerTagSeen: make(map[string]time.Time),
 		Accusations:    make(map[string]int),
+		Accusers:       make(map[string]map[string]bool),
 		HeardFrom:      make(map[string]bool),
 	}
 }
@@ -271,7 +299,8 @@ func aiOnArrive(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.Time)
 	switch ai.Goal {
 	case GoalGoToTask:
 		// "Perform" the task — stand still for a few seconds
-		ai.GoalDeadline = now.Add(AITaskTimeMin + time.Duration(rand.Int63n(int64(AITaskTimeMax-AITaskTimeMin))))
+		taskTime := AITaskTimeMin + time.Duration(rand.Int63n(int64(AITaskTimeMax-AITaskTimeMin)))
+		ai.GoalDeadline = now.Add(time.Duration(float64(taskTime) * aiProfiles[ai.Difficulty].TaskTimeScale))
 		if ai.Role == RoleCrewmate {
 			ai.Goal = GoalDoingTask
 		} else {
@@ -365,7 +394,7 @@ func aiTriggerSabotage(gs *GameState, room *Room, ai *AIBrain, sabType SabotageT
 
 // aiTaggerTryTag freezes a crewmate in range if the coast is clear
 func aiTaggerTryTag(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.Time) {
-	if now.Before(gs.TagCooldown) {
+	if now.Before(gs.TagCooldowns[ai.PlayerID]) {
 		return
 	}
 
@@ -398,6 +427,7 @@ func aiTaggerTryTag(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.T
 	}
 	ai.LastTagAt = now
 	ai.Careless = rand.Float64() < aiProfiles[ai.Difficulty].Carelessness
+	partnerCDs := gs.partnerCooldownsLocked(ai.PlayerID, now)
 	dbg("AI tagger %s froze %s", ai.PlayerID, nearestID)
 
 	// Broadcast freeze event in goroutine to avoid lock issues
@@ -414,6 +444,7 @@ func aiTaggerTryTag(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.T
 			PlayerID: victimID,
 			Position: bodyPos,
 		})
+		r.sendPartnerCooldowns(partnerCDs) // a human partner's button waits too
 		checkWinConditions(r)
 	}(room, nearestID, bodyPos)
 }
@@ -421,6 +452,11 @@ func aiTaggerTryTag(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.T
 // aiCrewWatching counts alive crewmates (other than the excluded IDs) within
 // vision range of pos — i.e. people who would see something happen there.
 func aiCrewWatching(gs *GameState, pos Vec2, exclude ...string) int {
+	return aiCrewWithin(gs, pos, AIVisionRadius, exclude...)
+}
+
+// aiCrewWithin counts alive crewmates (other than the excluded IDs) within r of pos.
+func aiCrewWithin(gs *GameState, pos Vec2, r float64, exclude ...string) int {
 	n := 0
 outer:
 	for id, role := range gs.Roles {
@@ -432,7 +468,7 @@ outer:
 				continue outer
 			}
 		}
-		if withinRange(pos, gs.Positions[id], AIVisionRadius) {
+		if withinRange(pos, gs.Positions[id], r) {
 			n++
 		}
 	}

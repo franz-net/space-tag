@@ -2,11 +2,68 @@
 
 import { useGameStore } from "@/stores/gameStore";
 import { sounds } from "@/lib/sounds";
-import { COLOR_HEX, type MsgType, type RoomSettings } from "@/lib/protocol";
+import {
+  COLOR_HEX,
+  MIN_PLAYERS_FOR_TWO_TAGGERS,
+  type Difficulty,
+  type MsgType,
+  type RoomSettings,
+} from "@/lib/protocol";
+
+const DIFFICULTIES: { value: Difficulty; icon: string; label: string }[] = [
+  { value: "easy", icon: "😊", label: "Easy" },
+  { value: "normal", icon: "🙂", label: "Normal" },
+  { value: "hard", icon: "😈", label: "Hard" },
+];
+
+const TAGGER_COUNTS = [
+  { value: 1, icon: "🏃", label: "1 Tagger" },
+  { value: 2, icon: "🏃🏃", label: "2 Taggers" },
+];
 
 interface LobbyProps {
   send: (type: MsgType, payload?: unknown) => void;
   connected: boolean;
+}
+
+interface ChoiceRowProps<T> {
+  label: string;
+  options: { value: T; icon: string; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  enabled: boolean;
+}
+
+// A row of big pick-one buttons (easy for kids to tap)
+function ChoiceRow<T extends string | number>({ label, options, value, onChange, enabled }: ChoiceRowProps<T>) {
+  return (
+    <div className="bg-gray-800 rounded-xl px-4 py-3">
+      <p className="text-gray-300 text-sm mb-2">{label}</p>
+      <div className="flex gap-2">
+        {options.map((opt) => {
+          const selected = value === opt.value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => onChange(opt.value)}
+              disabled={!enabled}
+              aria-pressed={selected}
+              className={`flex-1 flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-sm font-bold transition-colors ${
+                selected
+                  ? "bg-blue-600 text-white ring-2 ring-blue-300"
+                  : enabled
+                  ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
+                  : "bg-gray-700/50 text-gray-500"
+              } disabled:cursor-default`}
+            >
+              <span className="text-xl">{opt.icon}</span>
+              <span>{opt.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export default function Lobby({ send, connected }: LobbyProps) {
@@ -17,9 +74,11 @@ export default function Lobby({ send, connected }: LobbyProps) {
   const aiCount = players.filter((p) => p.isAI).length;
   const canAddAI = players.length < 6;
 
-  const updateSetting = (key: keyof RoomSettings, value: number) => {
+  const updateSetting = <K extends keyof RoomSettings>(key: K, value: RoomSettings[K]) => {
     send("room_settings", { ...settings, [key]: value });
   };
+  const twoTaggersWaiting =
+    settings.taggers === 2 && players.length < MIN_PLAYERS_FOR_TWO_TAGGERS;
 
   return (
     <div className="flex flex-col items-center gap-8 p-8">
@@ -153,6 +212,29 @@ export default function Lobby({ send, connected }: LobbyProps) {
               )}
             </div>
           ))}
+        </div>
+
+        {/* Bot difficulty + tagger count: big buttons, host picks */}
+        <div className="flex flex-col gap-3 mt-3">
+          <ChoiceRow
+            label="Bots"
+            options={DIFFICULTIES}
+            value={settings.difficulty}
+            onChange={(v) => updateSetting("difficulty", v)}
+            enabled={isHost}
+          />
+          <ChoiceRow
+            label="Taggers"
+            options={TAGGER_COUNTS}
+            value={settings.taggers}
+            onChange={(v) => updateSetting("taggers", v)}
+            enabled={isHost}
+          />
+          {twoTaggersWaiting && (
+            <p className="text-yellow-300 text-xs text-center">
+              2 Taggers needs {MIN_PLAYERS_FOR_TWO_TAGGERS} players. With fewer, the game uses 1.
+            </p>
+          )}
         </div>
       </div>
 

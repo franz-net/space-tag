@@ -54,6 +54,8 @@ export default function HUD({
 }: Props) {
   const {
     myRole,
+    myTeammates,
+    players,
     taskProgress,
     myTasks,
     tagCooldownEnd,
@@ -66,12 +68,15 @@ export default function HUD({
     meltdownTimer,
   } = useGameStore();
 
+  const partnerNames = myTeammates.map(
+    (id) => players.find((p) => p.id === id)?.name ?? "?"
+  );
   const completedCount = myTasks.filter((t) => t.completed).length;
   const totalCount = myTasks.length;
   const isFrozen = myId ? frozenIds.has(myId) : false;
 
   // Live cooldown counter
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(id);
@@ -231,8 +236,13 @@ export default function HUD({
       {myRole === "tagger" && (
         <div className="absolute top-4 right-4 z-10 w-56 px-4 py-3 rounded-xl bg-black/60 backdrop-blur">
           <h3 className="text-red-400 text-sm font-semibold mb-2">
-            You&apos;re the Tagger!
+            {partnerNames.length > 0 ? "You're a Tagger!" : "You're the Tagger!"}
           </h3>
+          {partnerNames.length > 0 && (
+            <p className="text-red-300 text-xs mb-2">
+              🤝 Your partner: <span className="font-bold">{partnerNames.join(", ")}</span>
+            </p>
+          )}
           <p className="text-gray-300 text-xs mb-3">
             Sabotage the ship to create chaos!
           </p>

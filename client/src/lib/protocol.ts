@@ -65,7 +65,14 @@ export interface RoomSettings {
   discussionTime: number;
   votingTime: number;
   tagCooldown: number;
+  difficulty: Difficulty;
+  taggers: number; // 1 or 2 (2 needs a full room)
 }
+
+export type Difficulty = "easy" | "normal" | "hard";
+
+// Two taggers only kick in with a full room (matches the server)
+export const MIN_PLAYERS_FOR_TWO_TAGGERS = 6;
 
 export interface RoomStatePayload {
   code: string;
@@ -79,6 +86,7 @@ export interface RoomStatePayload {
 export interface GameStartedPayload {
   role: Role;
   you: string;
+  teammates?: string[]; // other taggers (only sent to taggers)
 }
 
 export interface ErrorPayload {

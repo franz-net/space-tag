@@ -36,6 +36,7 @@ interface GameState {
 
   // Game
   myRole: Role | null;
+  myTeammates: string[]; // fellow taggers (empty for crewmates)
   mapData: MapDataPayload["map"] | null;
 
   // Tasks
@@ -80,7 +81,7 @@ interface GameState {
 
   // Actions
   setRoomState: (payload: RoomStatePayload) => void;
-  setGameStarted: (role: Role, myId: string) => void;
+  setGameStarted: (role: Role, myId: string, teammates: string[]) => void;
   setMapData: (data: MapDataPayload["map"]) => void;
   returnToLobby: () => void;
   setTaskProgress: (progress: number, tasks: PlayerTaskInfo[]) => void;
@@ -119,9 +120,17 @@ export const useGameStore = create<GameState>((set) => ({
   players: [],
   hostId: null,
   myId: null,
-  settings: { tasksPerPlayer: 4, discussionTime: 30, votingTime: 20, tagCooldown: 25 },
+  settings: {
+    tasksPerPlayer: 4,
+    discussionTime: 30,
+    votingTime: 20,
+    tagCooldown: 25,
+    difficulty: "normal",
+    taggers: 1,
+  },
 
   myRole: null,
+  myTeammates: [],
   mapData: null,
 
   myTasks: [],
@@ -188,9 +197,10 @@ export const useGameStore = create<GameState>((set) => ({
       error: null,
     })),
 
-  setGameStarted: (role, myId) =>
+  setGameStarted: (role, myId, teammates) =>
     set({
       myRole: role,
+      myTeammates: teammates,
       myId: myId,
       roomState: "playing",
       screen: "game",
@@ -203,6 +213,7 @@ export const useGameStore = create<GameState>((set) => ({
     set({
       screen: "lobby",
       myRole: null,
+      myTeammates: [],
       mapData: null,
       myTasks: [],
       taskProgress: 0,
@@ -302,6 +313,7 @@ export const useGameStore = create<GameState>((set) => ({
       hostId: null,
       myId: null,
       myRole: null,
+      myTeammates: [],
       mapData: null,
       myTasks: [],
       taskProgress: 0,

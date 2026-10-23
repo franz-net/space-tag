@@ -41,6 +41,7 @@ export class Engine {
   inCafeteria = false;
   private frozenIds: Set<string> = new Set();
   private myRole: "crewmate" | "tagger" | null = null;
+  private teammates: Set<string> = new Set(); // fellow taggers: can't be tagged
   private activeSabotage: string | null = null;
   private fixPositions: { id: string; x: number; y: number }[] = [];
 
@@ -194,7 +195,8 @@ export class Engine {
           localPos.y,
           70,
           this.localPlayerId,
-          this.frozenIds
+          this.frozenIds,
+          this.teammates
         );
       } else {
         this.nearTagTargetId = null;
@@ -323,6 +325,11 @@ export class Engine {
 
   setMyRole(role: "crewmate" | "tagger") {
     this.myRole = role;
+  }
+
+  setTeammates(ids: string[]) {
+    this.teammates = new Set(ids);
+    this.playerManager?.setTeammates(ids);
   }
 
   setSabotage(

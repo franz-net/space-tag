@@ -15,6 +15,7 @@ import (
 //	0.95  get away from a body I just made (tagger)
 //	0.90  meltdown fix · 0.75 lights fix · 0.60 comms fix (crewmate)
 //	0.85  hunt an isolated crewmate when tag is ready (tagger)
+//	0.85  Lights Out so a partner can tag unseen (tagger)
 //	0.55  nearest unfinished task (crewmate, ghost)
 //	0.40  fake a task (tagger)
 //	0.10  wander
@@ -26,6 +27,8 @@ const (
 	aiTaskCommitBonus = 0.40 // don't abandon a task halfway for small reasons
 	aiHelperPenalty   = 0.30 // per other bot already heading to the same fix station
 	aiLeaveSceneFor   = 6 * time.Second
+	aiPartnerZone     = 300.0            // crewmates this close to my partner are theirs to chase
+	aiAssistRange     = 150.0            // a crewmate this close to my partner is about to get tagged
 	aiSabotageRamp    = 90 * time.Second // urge to sabotage builds over this long
 )
 
@@ -169,8 +172,12 @@ func aiTaggerOptions(gs *GameState, ai *AIBrain, pos Vec2, now time.Time) []aiOp
 		opts = append(opts, aiLeaveSceneOption(ai, pos, 0.95))
 	}
 
+	// Partners I can see right now. Taggers know each other on sight but
+	// can't talk privately, so teamwork only uses what's in view.
+	partners := aiVisiblePartners(gs, ai, pos)
+
 	// Hunt: go after crewmates, preferring ones who are alone
-	cooldownLeft := gs.TagCooldown.Sub(now)
+	cooldownLeft := gs.TagCooldowns[ai.PlayerID].Sub(now)
 	for id, role := range gs.Roles {
 		if role != RoleCrewmate || gs.Frozen[id] {
 			continue
@@ -186,6 +193,14 @@ func aiTaggerOptions(gs *GameState, ai *AIBrain, pos Vec2, now time.Time) []aiOp
 		} else {
 			score = 0.20 * proximity(pos, targetPos) // loosely shadow people
 		}
+		// My partner is right there with them — leave that one to them and
+		// cover a different part of the ship.
+		for _, p := range partners {
+			if withinRange(gs.Positions[p], targetPos, aiPartnerZone) {
+				score *= 0.5
+				break
+			}
+		}
 		opts = append(opts, aiOption{Goal: GoalHunt, Target: id, Pos: targetPos, Score: score})
 	}
 
@@ -195,6 +210,15 @@ func aiTaggerOptions(gs *GameState, ai *AIBrain, pos Vec2, now time.Time) []aiOp
 		if !now.Before(gs.SabotageCooldown) {
 			minor := []SabotageType{SabotageLightsOut, SabotageCommsDown}[rand.Intn(2)]
 			opts = append(opts, aiOption{Goal: GoalSabotage, Target: string(minor), Sabotage: minor, Score: 0.55 * urge})
+
+			// Help my partner: they're next to a crewmate but others could
+			// see. Lights Out shrinks the crew's vision so they can strike.
+			for _, p := range partners {
+				if aiPartnerProbablyReady(gs, ai, p, now) && aiLightsWouldHelp(gs, gs.Positions[p]) {
+					opts = append(opts, aiOption{Goal: GoalSabotage, Target: "assist", Sabotage: SabotageLightsOut, Score: 0.85})
+					break
+				}
+			}
 		}
 		if !gs.Sabotage.UsedMeltdown {
 			// Save meltdown for when the crew is close to winning
@@ -206,6 +230,49 @@ func aiTaggerOptions(gs *GameState, ai *AIBrain, pos Vec2, now time.Time) []aiOp
 	opts = append(opts, aiTaskOptions(gs, ai, pos, 0.40)...) // fake tasks
 	opts = append(opts, aiWanderOption(ai, pos, 0.15))
 	return opts
+}
+
+// aiVisiblePartners returns the alive tagger partners in view.
+func aiVisiblePartners(gs *GameState, ai *AIBrain, pos Vec2) []string {
+	var out []string
+	for _, id := range ai.Partners {
+		if !gs.Frozen[id] && withinRange(pos, gs.Positions[id], aiVisionRadius(gs, ai)) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// aiPartnerProbablyReady guesses whether a partner's tag is off cooldown,
+// using only what this bot knows: when the round started (everyone's
+// cooldown resets), partner tags it saw, and its own tags (which make the
+// partner wait teamTagGap).
+func aiPartnerProbablyReady(gs *GameState, ai *AIBrain, partnerID string, now time.Time) bool {
+	ready := ai.RoundStart.Add(TagCooldownAfterMeeting)
+	if seen, ok := ai.PartnerTagSeen[partnerID]; ok {
+		if t := seen.Add(time.Duration(gs.Settings.TagCooldown * float64(time.Second))); t.After(ready) {
+			ready = t
+		}
+	}
+	if !ai.LastTagAt.IsZero() {
+		if t := ai.LastTagAt.Add(gs.teamTagGap()); t.After(ready) {
+			ready = t
+		}
+	}
+	return !now.Before(ready)
+}
+
+// aiLightsWouldHelp reports whether a tagger at pos has a crewmate within
+// reach and witnesses who'd see it now, but not once Lights Out shrinks
+// the crew's vision.
+func aiLightsWouldHelp(gs *GameState, pos Vec2) bool {
+	for id, role := range gs.Roles {
+		if role != RoleCrewmate || gs.Frozen[id] || !withinRange(pos, gs.Positions[id], aiAssistRange) {
+			continue
+		}
+		return aiCrewWithin(gs, pos, AIVisionRadius, id) > 0 && aiCrewWithin(gs, pos, AIReducedVision, id) == 0
+	}
+	return false
 }
 
 // aiTaskOptions lists the bot's unfinished tasks. Taggers get fake tasks

@@ -12,9 +12,12 @@ const (
 	// Grace period at game start and after every meeting before the
 	// tagger can tag again.
 	TagCooldownAfterMeeting = 10 * time.Second
-	TagRange                = 70.0
-	ReportRange             = 90.0
-	MaxChatMessages         = 8 // per player per meeting
+	// With two taggers, after one tags the other waits this share of the
+	// tag cooldown too, so the crew can find the body before a second tag.
+	TeamTagGapFactor = 1.0
+	TagRange         = 70.0
+	ReportRange      = 90.0
+	MaxChatMessages  = 8 // per player per meeting
 )
 
 // Pre-defined chat messages — kid friendly icons only

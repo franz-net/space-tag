@@ -10,6 +10,7 @@ const VISION_RADIUS = 250;
 // Cols: Down(0-2), Up(3-5), Left(6-8), Right(9-11), Frozen(12)
 // Rows: red, blue, green, yellow, purple, orange
 const FRAME_SIZE = 32;
+const TEAMMATE_NAME_COLOR = 0xf87171;
 const COLOR_ROW: Record<PlayerColor, number> = {
   red: 0,
   blue: 1,
@@ -85,6 +86,7 @@ function getTextures(baseTexture: Texture): Map<PlayerColor, ColorTextures> {
 export class PlayerManager {
   container: Container;
   private sprites: Map<string, PlayerSpriteData> = new Map();
+  private teammates: Set<string> = new Set();
   private localPlayerId: string = "";
   private sheetTexture: Texture | null = null;
 
@@ -124,7 +126,7 @@ export class PlayerManager {
         fontFamily: "Arial",
         fontSize: 12,
         fontWeight: "bold",
-        fill: 0xffffff,
+        fill: this.teammates.has(info.id) ? TEAMMATE_NAME_COLOR : 0xffffff,
         align: "center",
         dropShadow: {
           color: 0x000000,
@@ -183,6 +185,14 @@ export class PlayerManager {
     this.container.removeChild(sprite.container);
     sprite.container.destroy({ children: true });
     this.sprites.delete(id);
+  }
+
+  // Taggers see their partners' names in red
+  setTeammates(ids: string[]) {
+    this.teammates = new Set(ids);
+    for (const [id, sprite] of this.sprites) {
+      sprite.nameLabel.style.fill = this.teammates.has(id) ? TEAMMATE_NAME_COLOR : 0xffffff;
+    }
   }
 
   setFrozen(frozenIds: Set<string>) {
@@ -308,13 +318,15 @@ export class PlayerManager {
     y: number,
     range: number,
     excludeId: string,
-    frozenIds: Set<string>
+    frozenIds: Set<string>,
+    skipIds?: Set<string>
   ): string | null {
     let nearestId: string | null = null;
     let nearestDistSq = range * range;
     for (const [id, sprite] of this.sprites) {
       if (id === excludeId) continue;
       if (frozenIds.has(id)) continue;
+      if (skipIds?.has(id)) continue;
       const dx = sprite.currentX - x;
       const dy = sprite.currentY - y;
       const distSq = dx * dx + dy * dy;

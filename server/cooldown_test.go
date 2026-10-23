@@ -63,7 +63,7 @@ func TestTagSendsTagCooldown(t *testing.T) {
 	roles := map[string]Role{"t": RoleTagger, "a": RoleCrewmate, "b": RoleCrewmate}
 	room, gs := newTestGame(roles, nil)
 	clients := attachTestClients(t, room, "t")
-	gs.TagCooldown = time.Now().Add(-time.Second)
+	gs.TagCooldowns["t"] = time.Now().Add(-time.Second)
 	gs.Positions["t"] = Vec2{300, 300}
 	gs.Positions["a"] = Vec2{330, 300}
 

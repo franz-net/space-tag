@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+	"time"
 )
 
 type RoomPhase string
@@ -24,6 +25,20 @@ type RoomSettings struct {
 	DiscussionTime float64 `json:"discussionTime"` // seconds, 15-60, default 30
 	VotingTime     float64 `json:"votingTime"`     // seconds, 10-30, default 20
 	TagCooldown    float64 `json:"tagCooldown"`    // seconds, 10-45, default 25
+	Difficulty     string  `json:"difficulty"`     // bot smarts: "easy", "normal", "hard"
+	Taggers        int     `json:"taggers"`        // 1 or 2 (2 needs a full room)
+}
+
+// MinPlayersForTwoTaggers: with fewer players, two taggers win after a
+// single tag, which is over before it starts.
+const MinPlayersForTwoTaggers = 6
+
+// taggerCount is how many taggers a game with n players gets.
+func (s RoomSettings) taggerCount(n int) int {
+	if s.Taggers >= 2 && n >= MinPlayersForTwoTaggers {
+		return 2
+	}
+	return 1
 }
 
 func DefaultSettings() RoomSettings {
@@ -32,6 +47,8 @@ func DefaultSettings() RoomSettings {
 		DiscussionTime: 30,
 		VotingTime:     20,
 		TagCooldown:    25,
+		Difficulty:     "normal",
+		Taggers:        1,
 	}
 }
 
@@ -42,8 +59,8 @@ type Room struct {
 	Order    []string           // insertion order of player IDs
 	Clients  map[string]*Client // playerID -> WS Client (nil for AI)
 	HostID   string
-	Settings RoomSettings       // configurable game settings
-	Game     *GameState         // nil when in lobby
+	Settings RoomSettings // configurable game settings
+	Game     *GameState   // nil when in lobby
 	mu       sync.RWMutex
 }
 
@@ -338,6 +355,14 @@ func (r *Room) sendTo(playerID string, msgType MsgType, payload interface{}) {
 
 // sendTaskProgress sends each player their own task_progress payload.
 // Must be called WITHOUT gs.mu held (sendTo takes r.mu).
+func (r *Room) sendPartnerCooldowns(cds map[string]float64) {
+	for id, secs := range cds {
+		r.sendTo(id, MsgCooldown, CooldownPayload{Kind: CooldownTag, Seconds: secs})
+	}
+}
+
+// sendTaskProgress sends each player their task list.
+// Must be called WITHOUT gs.mu held (sendTo takes r.mu).
 func (r *Room) sendTaskProgress(payloads map[string]TaskProgressPayload) {
 	for id, p := range payloads {
 		r.sendTo(id, MsgTaskProgress, p)
@@ -368,12 +393,15 @@ func (r *Room) startGame() {
 		ids = append(ids, id)
 	}
 
-	// Pick a random tagger
-	taggerIdx := rand.Intn(len(ids))
+	// Pick random taggers
+	isTagger := make(map[string]bool)
+	for _, i := range rand.Perm(len(ids))[:settings.taggerCount(len(ids))] {
+		isTagger[ids[i]] = true
+	}
 
-	for i, id := range ids {
+	for _, id := range ids {
 		p := r.Players[id]
-		if i == taggerIdx {
+		if isTagger[id] {
 			p.Role = RoleTagger
 		} else {
 			p.Role = RoleCrewmate
@@ -397,6 +425,9 @@ func (r *Room) startGame() {
 	gm := BuildMap()
 	r.Game = NewGameState(gm, ids, roles, aiIDs, settings, playerColors)
 	r.Game.Room = r // back-pointer for AI tick callbacks
+	// No tagging the moment the game starts (the loop isn't running yet,
+	// so no lock needed)
+	r.Game.resetTagCooldownsLocked(time.Now().Add(TagCooldownAfterMeeting))
 
 	r.mu.Unlock()
 

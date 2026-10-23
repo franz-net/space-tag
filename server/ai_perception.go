@@ -19,7 +19,8 @@ import (
 //     accuser is someone the bot already suspects)
 //   - being with someone just before a meeting -> -0.15 (alibi)
 //
-// Suspicion halves after each meeting except for witnessed tags.
+// Suspicion fades after each meeting (how much depends on difficulty),
+// except for witnessed tags.
 
 const (
 	aiSusWitnessed  = 1.0
@@ -32,7 +33,6 @@ const (
 	aiSeenWithRange = 200.0
 	aiSeenWithFor   = 30 * time.Second
 	aiClaimWindow   = 3 * time.Second // only "you were right next to me" sightings can expose a lie
-	aiSusDecay      = 0.5
 	aiAlibiWindow   = 10 * time.Second
 	aiSusVoteSure   = 0.5  // vote for them
 	aiSusVoteMaybe  = 0.35 // sometimes vote for them, usually skip
@@ -121,9 +121,14 @@ func aiRecordSeenWith(ai *AIBrain, a, b string, now time.Time) {
 // aiNotifyTag tells every crewmate bot that can see the tagger that a tag
 // just happened. Called from tagLocked, so it covers human and AI taggers.
 // Caller must hold gs.mu.
-func aiNotifyTag(gs *GameState, taggerID, victimID string) {
+func aiNotifyTag(gs *GameState, taggerID, victimID string, now time.Time) {
 	taggerPos := gs.Positions[taggerID]
 	for id, ai := range gs.AIBrains {
+		// A tagger bot that sees its partner tag knows their cooldown restarted
+		if ai.isPartner(taggerID) && withinRange(gs.Positions[id], taggerPos, aiVisionRadius(gs, ai)) {
+			ai.PartnerTagSeen[taggerID] = now
+			continue
+		}
 		if ai.Role != RoleCrewmate || id == victimID || gs.Frozen[id] {
 			continue
 		}
@@ -171,6 +176,11 @@ func aiNotifyChat(gs *GameState, senderID, messageID string, now time.Time) {
 			continue // repeating yourself doesn't make it more true
 		}
 		ai.HeardFrom[key] = true
+
+		if ai.Accusers[targetID] == nil {
+			ai.Accusers[targetID] = make(map[string]bool)
+		}
+		ai.Accusers[targetID][senderID] = true
 
 		if targetID == id {
 			ai.AccusedMe++
@@ -226,10 +236,12 @@ func aiOnMeetingStart(gs *GameState, ai *AIBrain, now time.Time) {
 	ai.LastChat = ""
 	ai.VoteDelay = time.Duration(2+rand.Intn(8)) * time.Second
 	ai.Accusations = make(map[string]int)
+	ai.Accusers = make(map[string]map[string]bool)
 	ai.HeardFrom = make(map[string]bool)
 	ai.AccusedMe = 0
 	ai.SaidISaw = false
 	ai.SaidNotMe = false
+	ai.SaidDefend = false
 	ai.BodyRoom = ""
 	ai.Goal = GoalIdle
 	ai.GoalTarget = ""
@@ -272,11 +284,12 @@ func aiOnMeetingStart(gs *GameState, ai *AIBrain, now time.Time) {
 
 func aiOnMeetingEnd(gs *GameState, ai *AIBrain, now time.Time) {
 	ai.InMeeting = false
+	ai.RoundStart = now
 	for id := range ai.Suspicion {
 		if gs.Frozen[id] {
 			delete(ai.Suspicion, id)
 		} else if !ai.Witnessed[id] {
-			ai.Suspicion[id] *= aiSusDecay
+			ai.Suspicion[id] *= aiProfiles[ai.Difficulty].SusDecay
 		}
 	}
 	ai.KnownBodies = make(map[string]bool)
@@ -318,4 +331,53 @@ func (ai *AIBrain) mostAccused(candidates []string) (string, int) {
 		}
 	}
 	return best, bestN
+}
+
+func (ai *AIBrain) isPartner(id string) bool {
+	for _, p := range ai.Partners {
+		if p == id {
+			return true
+		}
+	}
+	return false
+}
+
+// withoutPartners filters a tagger's partners out of a candidate list.
+func (ai *AIBrain) withoutPartners(ids []string) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if !ai.isPartner(id) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// partnerAccuser returns an alive player who accused one of this tagger's
+// partners this meeting, so the bot can turn suspicion back on them.
+func (ai *AIBrain) partnerAccuser(alive []string) string {
+	for _, p := range ai.Partners {
+		for _, id := range alive {
+			if id != ai.PlayerID && !ai.isPartner(id) && ai.Accusers[p][id] {
+				return id
+			}
+		}
+	}
+	return ""
+}
+
+// partnerPick returns an alive crewmate a partner accused this meeting, so
+// the bot can back them up.
+func (ai *AIBrain) partnerPick(alive []string) string {
+	for _, id := range alive {
+		if id == ai.PlayerID || ai.isPartner(id) {
+			continue
+		}
+		for _, p := range ai.Partners {
+			if ai.Accusers[id][p] {
+				return id
+			}
+		}
+	}
+	return ""
 }

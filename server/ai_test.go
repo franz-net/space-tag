@@ -10,6 +10,10 @@ import (
 // roles and a chosen subset of AI players. No clients are attached, so
 // broadcasts are no-ops.
 func newTestGame(roles map[string]Role, aiIDs []string) (*Room, *GameState) {
+	return newTestGameWith(roles, aiIDs, DefaultSettings())
+}
+
+func newTestGameWith(roles map[string]Role, aiIDs []string, settings RoomSettings) (*Room, *GameState) {
 	ids := make([]string, 0, len(roles))
 	for id := range roles {
 		ids = append(ids, id)
@@ -22,7 +26,7 @@ func newTestGame(roles map[string]Role, aiIDs []string) (*Room, *GameState) {
 		Players:  make(map[string]*Player),
 		Order:    ids,
 		Clients:  make(map[string]*Client),
-		Settings: DefaultSettings(),
+		Settings: settings,
 	}
 	colors := make(map[string]string)
 	for i, id := range ids {
@@ -52,19 +56,25 @@ func simulate(gs *GameState, start time.Time, limit time.Duration, done func() b
 }
 
 func TestAICrewFinishesAllTasks(t *testing.T) {
-	roles := map[string]Role{}
-	var ais []string
-	for _, id := range []string{"a", "b", "c", "d", "e"} {
-		roles[id] = RoleCrewmate
-		ais = append(ais, id)
-	}
-	_, gs := newTestGame(roles, ais)
+	for _, difficulty := range []string{"easy", "normal", "hard"} {
+		t.Run(difficulty, func(t *testing.T) {
+			roles := map[string]Role{}
+			var ais []string
+			for _, id := range []string{"a", "b", "c", "d", "e"} {
+				roles[id] = RoleCrewmate
+				ais = append(ais, id)
+			}
+			settings := DefaultSettings()
+			settings.Difficulty = difficulty
+			_, gs := newTestGameWith(roles, ais, settings)
 
-	took, ok := simulate(gs, time.Now(), 6*time.Minute, gs.Tasks.AllTasksDone)
-	if !ok {
-		t.Fatalf("bots only finished %d/%d tasks in 6 simulated minutes", gs.Tasks.DoneTasks, gs.Tasks.TotalTasks)
+			took, ok := simulate(gs, time.Now(), 6*time.Minute, gs.Tasks.AllTasksDone)
+			if !ok {
+				t.Fatalf("bots only finished %d/%d tasks in 6 simulated minutes", gs.Tasks.DoneTasks, gs.Tasks.TotalTasks)
+			}
+			t.Logf("5 %s bots finished %d tasks in %s", difficulty, gs.Tasks.TotalTasks, took.Round(time.Second))
+		})
 	}
-	t.Logf("5 bots finished %d tasks in %s", gs.Tasks.TotalTasks, took.Round(time.Second))
 }
 
 func TestAIGhostsKeepDoingTasks(t *testing.T) {
@@ -89,7 +99,7 @@ func TestAIOnlyWitnessesWhatItCanSee(t *testing.T) {
 	gs.Positions["far"] = Vec2{1900, 1150}
 
 	now := time.Now()
-	gs.TagCooldown = now
+	gs.TagCooldowns["h"] = now
 	if _, ok := gs.TryTag("h", "v", now); !ok {
 		t.Fatal("setup: tag failed")
 	}
@@ -151,7 +161,7 @@ func TestAITaggerWaitsForNoWitnesses(t *testing.T) {
 	roles := map[string]Role{"tag": RoleTagger, "v": RoleCrewmate, "w": RoleCrewmate}
 	room, gs := newTestGame(roles, []string{"tag"})
 	now := time.Now()
-	gs.TagCooldown = now.Add(-time.Second)
+	gs.TagCooldowns["tag"] = now.Add(-time.Second)
 	gs.Positions["tag"] = Vec2{1100, 960}
 	gs.Positions["v"] = Vec2{1140, 960}
 	gs.Positions["w"] = Vec2{1100, 1100} // within vision of the tagger
@@ -169,8 +179,8 @@ func TestAITaggerWaitsForNoWitnesses(t *testing.T) {
 		t.Fatal("tagger should freeze an isolated crewmate")
 	}
 	wantCD := now.Add(time.Duration(gs.Settings.TagCooldown * float64(time.Second)))
-	if !gs.TagCooldown.Equal(wantCD) {
-		t.Errorf("AI tag cooldown = %s, want lobby setting %.0fs", gs.TagCooldown.Sub(now), gs.Settings.TagCooldown)
+	if !gs.TagCooldowns["tag"].Equal(wantCD) {
+		t.Errorf("AI tag cooldown = %s, want lobby setting %.0fs", gs.TagCooldowns["tag"].Sub(now), gs.Settings.TagCooldown)
 	}
 }
 
@@ -280,7 +290,7 @@ func TestAICarelessTaggerGetsWitnessed(t *testing.T) {
 	roles := map[string]Role{"tag": RoleTagger, "v": RoleCrewmate, "w": RoleCrewmate}
 	room, gs := newTestGame(roles, []string{"tag", "w"})
 	now := time.Now()
-	gs.TagCooldown = now.Add(-time.Second)
+	gs.TagCooldowns["tag"] = now.Add(-time.Second)
 	gs.Positions["tag"] = Vec2{1100, 960}
 	gs.Positions["v"] = Vec2{1140, 960}
 	gs.Positions["w"] = Vec2{1100, 1100}
