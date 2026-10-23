@@ -23,7 +23,7 @@ export default function MeetingScreen({ send }: Props) {
     meetingResult,
   } = useGameStore();
 
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(id);
@@ -31,12 +31,25 @@ export default function MeetingScreen({ send }: Props) {
 
   // Phase transition is now driven by the server via meeting_phase message.
 
+  // Auto-scroll chat log to the bottom when new messages arrive
+  const chatLogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (chatLogRef.current) {
+      chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
+    }
+  }, [chatMessages.length]);
+
   if (!meeting) return null;
 
   const remaining = Math.max(0, Math.ceil((meetingPhaseEnd - now) / 1000));
   const alivePlayers = players.filter((p) => meeting.alivePlayers.includes(p.id));
   const isAlive = myId ? meeting.alivePlayers.includes(myId) : false;
   const callerName = players.find((p) => p.id === meeting.callerId)?.name ?? "?";
+  // Reuse the location quick-message icon + name ("🏥 Medbay")
+  const bodyLocation =
+    meeting.reason === "body"
+      ? QUICK_MESSAGES.find((m) => m.id === `loc_${meeting.bodyRoom}`) ?? null
+      : null;
 
   // Match server's MaxChatMessages — bumped from 3 to 8
   const MAX_MESSAGES = 8;
@@ -64,14 +77,6 @@ export default function MeetingScreen({ send }: Props) {
     }
     messagesByPlayer[msg.senderId].push(msg.messageId);
   }
-
-  // Auto-scroll chat log to the bottom when new messages arrive
-  const chatLogRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (chatLogRef.current) {
-      chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
-    }
-  }, [chatMessages.length]);
 
   // Result phase
   if (meetingResult) {
@@ -121,6 +126,13 @@ export default function MeetingScreen({ send }: Props) {
           {meeting.reason === "body" ? "🚨 Frozen Friend Found!" : "🚨 Emergency Meeting!"}
         </h1>
         <p className="text-gray-400 text-xs sm:text-sm">Called by {callerName}</p>
+        {meeting.reason === "body" && (
+          <div className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-900/60 border border-cyan-500/40 text-cyan-100 text-xs sm:text-sm font-semibold">
+            <span>❄️ Found in</span>
+            <span className="text-base sm:text-lg">{bodyLocation?.icon ?? "🚪"}</span>
+            <span>{bodyLocation?.text ?? "a hallway"}</span>
+          </div>
+        )}
         <div className="mt-1.5 inline-block px-3 sm:px-4 py-1 rounded-full bg-gray-800">
           <span className="text-white font-bold text-sm sm:text-base">
             {meetingPhase === "discussion" ? "Discuss: " : "Vote: "}

@@ -61,19 +61,14 @@ func (h *Hub) handleDisconnect(client *Client) {
 	}
 
 	room.mu.RLock()
-	inGame := room.Game != nil && room.Phase == PhasePlaying
+	game := room.Game
+	inGame := game != nil && room.Phase == PhasePlaying
 	room.mu.RUnlock()
 
 	// If a game is in progress, check win conditions and task progress
 	if inGame {
 		// Re-broadcast task progress to all (since total may have changed)
-		for _, id := range ids {
-			tasks := room.Game.Tasks.GetPlayerTasks(id)
-			room.sendTo(id, MsgTaskProgress, TaskProgressPayload{
-				Progress: room.Game.Tasks.Progress(),
-				Tasks:    tasks,
-			})
-		}
+		room.sendTaskProgress(game.TaskProgressSnapshot())
 
 		checkWinConditions(room)
 	}

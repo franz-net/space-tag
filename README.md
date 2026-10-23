@@ -126,8 +126,11 @@ space-tag/
 │   ├── tasks.go            # Task stations, assignment, progress
 │   ├── voting.go           # Meeting state, votes, pre-defined messages
 │   ├── sabotage.go         # Sabotage types, fix stations, meltdown
-│   ├── ai.go               # AI brains, pathfinding goals, stuck detection, voting
-│   ├── pathfinding.go      # BFS waypoint graph (23 nodes)
+│   ├── ai.go               # AI brain state, tick loop, path following, tagging
+│   ├── ai_utility.go       # Utility AI: scores every option, picks the best
+│   ├── ai_perception.go    # What bots can see/hear → suspicion scores
+│   ├── ai_meeting.go       # Bot chat + voting
+│   ├── pathfinding.go      # BFS waypoint graph (27 nodes)
 │   ├── messages.go         # Protocol message types
 │   ├── player.go           # Player + role types
 │   └── errors.go
@@ -242,13 +245,17 @@ These rules drive every decision:
 ### Phase 5: AI Players ✅
 - [x] Bots can be added/removed in lobby
 - [x] Kid-friendly AI names (Astro, Cosmo, Nova, Pixel, Zippy, Blip, Fizz, Boop...)
-- [x] BFS pathfinding on a 23-node waypoint graph (room centers + secondary points + hallways)
-- [x] Stuck detection — re-routes to nearest waypoint after 1s of no movement
-- [x] AI crewmate — navigates to tasks, completes them, reports bodies, fixes sabotage (50% chance)
-- [x] AI tagger — fakes tasks, hunts alive players, freezes when no witnesses, triggers sabotage
-- [x] Suspicion-based AI voting (seen near body = very sus, unseen = moderately sus)
-- [x] Contextual AI chat (crewmates share location/accuse, taggers deflect)
-- [x] Easy/normal difficulty (witness check on Normal)
+- [x] BFS pathfinding on a 27-node waypoint graph (room centers + secondary points + hallways), with tests that every route between stations is walkable
+- [x] **Utility AI** — every half second each bot scores its options (report body, fix sabotage, do task, hunt, fake task, sabotage, leave the scene, wander) and commits to the best, with a bonus for finishing what it started
+- [x] Stuck detection — a bot that stalls gives up on that action for a few seconds and picks another
+- [x] AI crewmate — does nearest tasks first, reports bodies it sees, splits up to fix sabotage; keeps doing tasks as a ghost
+- [x] AI tagger — fakes tasks, hunts isolated crewmates, usually waits until no one's watching (but sometimes slips up), leaves the scene afterward, saves Meltdown for when the crew is close to winning
+- [x] Fair perception — bots only know what they could see (250px vision, 100px in Lights Out): witnessing a tag, who they last saw with the victim, who's hanging around a body, alibis
+- [x] Bots listen to the meeting — accusations sway them (unless the accuser is already suspicious), and a location claim that contradicts what a bot just saw gets called out
+- [x] Suspicion-based voting — bots skip when they have no real evidence instead of guessing
+- [x] Contextual AI chat — the reporter says where the body was, witnesses say "I saw something" then accuse, everyone shares where they were; taggers deny, bandwagon, and lie about being at the scene
+- [x] Meeting screen shows where the frozen friend was found
+- [x] Easy/normal difficulty profiles (Easy: misses clues, tags in front of witnesses, sloppier choices) — not yet selectable in the lobby
 
 ### Phase 6: Polish + Sabotage ✅
 - [x] Sound effects (click, freeze, meeting bell, task complete, sabotage, meltdown alarm)

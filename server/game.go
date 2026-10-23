@@ -11,34 +11,34 @@ const TickRate = 20 // Hz
 const TickDuration = time.Second / TickRate
 
 type GameState struct {
-	Map         *GameMap
-	Positions   map[string]Vec2    // playerID -> position
-	MoveInputs  map[string]Vec2    // playerID -> direction vector (from client)
-	Tasks       *TasksState
-	Roles       map[string]Role    // playerID -> role
-	Frozen      map[string]bool    // playerID -> is frozen (true=dead/body)
-	BodyPos     map[string]Vec2    // bodyID -> position where body lies
-	BodyReported map[string]bool   // bodyID -> has been reported
-	TagCooldown time.Time          // earliest time tagger can tag again
-	UsedEmergency map[string]bool  // playerID -> already used emergency
-	Meeting     *Meeting           // current meeting, nil if none
-	AIBrains    map[string]*AIBrain // playerID -> AI brain (only for AI players)
-	Room        *Room              // back-pointer for AI tick callbacks
-	Sabotage         *SabotageState    // current sabotage state
-	SabotageCooldown time.Time        // earliest time tagger can sabotage again
-	Settings         RoomSettings     // game settings from lobby
-	PlayerColors     map[string]string // playerID -> color name (for AI chat)
-	mu          sync.RWMutex
-	stopCh      chan struct{}
+	Map              *GameMap
+	Positions        map[string]Vec2 // playerID -> position
+	MoveInputs       map[string]Vec2 // playerID -> direction vector (from client)
+	Tasks            *TasksState
+	Roles            map[string]Role     // playerID -> role
+	Frozen           map[string]bool     // playerID -> is frozen (true=dead/body)
+	BodyPos          map[string]Vec2     // bodyID -> position where body lies
+	BodyReported     map[string]bool     // bodyID -> has been reported
+	TagCooldown      time.Time           // earliest time tagger can tag again
+	UsedEmergency    map[string]bool     // playerID -> already used emergency
+	Meeting          *Meeting            // current meeting, nil if none
+	AIBrains         map[string]*AIBrain // playerID -> AI brain (only for AI players)
+	Room             *Room               // back-pointer for AI tick callbacks
+	Sabotage         *SabotageState      // current sabotage state
+	SabotageCooldown time.Time           // earliest time tagger can sabotage again
+	Settings         RoomSettings        // game settings from lobby
+	PlayerColors     map[string]string   // playerID -> color name (for AI chat)
+	mu               sync.RWMutex
+	stopCh           chan struct{}
 }
 
 // PositionsPayload is sent to all clients each tick
 type PositionsPayload struct {
 	Positions     map[string]Vec2 `json:"positions"`
-	Frozen        []string        `json:"frozen"`              // playerIDs that are frozen (ghosts)
-	Bodies        map[string]Vec2 `json:"bodies"`              // bodyID -> body position (visible to everyone)
-	Sabotage      string          `json:"sabotage"`            // "" or active sabotage type
-	MeltdownTimer float64         `json:"meltdownTimer"`       // seconds remaining (0 if not meltdown)
+	Frozen        []string        `json:"frozen"`        // playerIDs that are frozen (ghosts)
+	Bodies        map[string]Vec2 `json:"bodies"`        // bodyID -> body position (visible to everyone)
+	Sabotage      string          `json:"sabotage"`      // "" or active sabotage type
+	MeltdownTimer float64         `json:"meltdownTimer"` // seconds remaining (0 if not meltdown)
 }
 
 // MovePayload is sent from client to server
@@ -134,7 +134,12 @@ func (gs *GameState) CountAlive() (crew int, tagger int) {
 func (gs *GameState) TryTag(selfID, targetID string, now time.Time) (Vec2, bool) {
 	gs.mu.Lock()
 	defer gs.mu.Unlock()
+	return gs.tagLocked(selfID, targetID, now)
+}
 
+// tagLocked validates and applies a tag. Shared by human and AI taggers so
+// both follow exactly the same rules. Caller must hold gs.mu.
+func (gs *GameState) tagLocked(selfID, targetID string, now time.Time) (Vec2, bool) {
 	// Caller must be alive tagger
 	if gs.Roles[selfID] != RoleTagger || gs.Frozen[selfID] {
 		return Vec2{}, false
@@ -166,6 +171,9 @@ func (gs *GameState) TryTag(selfID, targetID string, now time.Time) (Vec2, bool)
 	gs.TagCooldown = now.Add(time.Duration(gs.Settings.TagCooldown * float64(time.Second)))
 	// Stop them moving
 	gs.MoveInputs[targetID] = Vec2{}
+
+	// Let nearby AI crewmates witness it
+	aiNotifyTag(gs, selfID, targetID)
 
 	return b, true
 }
@@ -268,7 +276,11 @@ func (gs *GameState) TeleportToCafeteria() {
 func (gs *GameState) TrySabotage(selfID string, sabType SabotageType, now time.Time) bool {
 	gs.mu.Lock()
 	defer gs.mu.Unlock()
+	return gs.trySabotageLocked(selfID, sabType, now)
+}
 
+// trySabotageLocked validates and activates a sabotage. Caller must hold gs.mu.
+func (gs *GameState) trySabotageLocked(selfID string, sabType SabotageType, now time.Time) bool {
 	// Must be alive tagger
 	if gs.Roles[selfID] != RoleTagger || gs.Frozen[selfID] {
 		return false
@@ -311,7 +323,11 @@ func (gs *GameState) TrySabotage(selfID string, sabType SabotageType, now time.T
 func (gs *GameState) TryFixSabotage(playerID, stationID string) (allFixed bool, ok bool) {
 	gs.mu.Lock()
 	defer gs.mu.Unlock()
+	return gs.fixSabotageLocked(playerID, stationID)
+}
 
+// fixSabotageLocked validates and applies a fix. Caller must hold gs.mu.
+func (gs *GameState) fixSabotageLocked(playerID, stationID string) (allFixed bool, ok bool) {
 	// Must be alive crewmate (tagger can't fix)
 	if gs.Roles[playerID] == RoleTagger || gs.Frozen[playerID] {
 		return false, false
@@ -372,6 +388,24 @@ func (gs *GameState) GetSabotageInfo() (string, float64) {
 	return string(gs.Sabotage.Active), remaining
 }
 
+// taskProgressLocked builds each player's task_progress payload (their own
+// task list plus overall progress). Caller must hold gs.mu.
+func (gs *GameState) taskProgressLocked() map[string]TaskProgressPayload {
+	progress := gs.Tasks.Progress()
+	out := make(map[string]TaskProgressPayload, len(gs.Roles))
+	for id := range gs.Roles {
+		out[id] = TaskProgressPayload{Progress: progress, Tasks: gs.Tasks.GetPlayerTasks(id)}
+	}
+	return out
+}
+
+// TaskProgressSnapshot is taskProgressLocked for callers not holding gs.mu.
+func (gs *GameState) TaskProgressSnapshot() map[string]TaskProgressPayload {
+	gs.mu.RLock()
+	defer gs.mu.RUnlock()
+	return gs.taskProgressLocked()
+}
+
 func (gs *GameState) SetInput(playerID string, dx, dy float64) {
 	gs.mu.Lock()
 	defer gs.mu.Unlock()
@@ -379,12 +413,17 @@ func (gs *GameState) SetInput(playerID string, dx, dy float64) {
 }
 
 func (gs *GameState) Tick(dt float64) {
+	gs.TickAt(time.Now(), dt)
+}
+
+// TickAt advances the game by dt seconds as of `now`. Split out from Tick so
+// tests can drive the simulation with a fake clock.
+func (gs *GameState) TickAt(now time.Time, dt float64) {
 	gs.mu.Lock()
 	defer gs.mu.Unlock()
 
 	// Update AI brains (they read state and write MoveInputs).
 	// During meetings, AI brains still tick to vote/chat but don't move.
-	now := time.Now()
 	for _, ai := range gs.AIBrains {
 		AITick(gs, gs.Room, ai, now)
 	}

@@ -1,5 +1,18 @@
 package main
 
+// AI players run on a small Utility AI:
+//
+//   - ai.go            brain state, the per-tick loop, path following
+//   - ai_perception.go what a bot can actually see and hear (suspicion)
+//   - ai_utility.go    scoring every possible action and picking the best
+//   - ai_meeting.go    chatting and voting during meetings
+//
+// Every AIDecisionDelay a bot lists the actions open to it (do this task,
+// report that body, hunt that player, ...), scores each one from 0 to 1,
+// adds a little noise and a bonus for whatever it's already doing, and
+// commits to the winner. Tuning is a matter of adjusting the score formulas
+// in ai_utility.go.
+
 import (
 	"log"
 	"math"
@@ -14,6 +27,18 @@ const (
 	AINormal
 )
 
+// aiProfile holds the knobs that differ between difficulty levels.
+type aiProfile struct {
+	NoticeChance float64 // chance a crewmate bot registers a clue it could see
+	Carelessness float64 // chance a tagger bot ignores witnesses for its next tag
+	ScoreNoise   float64 // random jitter on utility scores (higher = sloppier)
+}
+
+var aiProfiles = map[AIDifficulty]aiProfile{
+	AIEasy:   {NoticeChance: 0.5, Carelessness: 1.0, ScoreNoise: 0.3},
+	AINormal: {NoticeChance: 1.0, Carelessness: 0.35, ScoreNoise: 0.1},
+}
+
 type AIGoal int
 
 const (
@@ -25,173 +50,135 @@ const (
 	GoalFakeTask
 	GoalReportBody
 	GoalFixSabotage
+	GoalLeaveScene
+	GoalSabotage // instant: fires a sabotage, then the bot keeps its current goal
 )
 
 type AIBrain struct {
-	PlayerID    string
-	Role        Role
-	Difficulty  AIDifficulty
-	Goal        AIGoal
-	GoalTarget  string // station ID or player ID
-	Path        []Vec2
-	PathIdx     int
+	PlayerID     string
+	Role         Role
+	Difficulty   AIDifficulty
+	Goal         AIGoal
+	GoalTarget   string // station ID, player ID, body ID, or waypoint index
+	GoalPos      Vec2   // where the goal was when we planned the path
+	Path         []Vec2
+	PathIdx      int
 	GoalDeadline time.Time // when current goal expires (e.g. finish task)
 	NextDecision time.Time // throttle re-planning
 
 	// Stuck detection
-	LastPos    Vec2 // position last tick
-	StuckTicks int  // consecutive ticks with <1px movement
+	LastPos    Vec2                 // position last tick
+	StuckTicks int                  // consecutive ticks with <1px movement
+	Avoid      map[string]time.Time // option key -> skip it until this time
 
-	// Awareness — who was near whom (for voting)
-	// Updated every ~500ms: tracks which players the AI has seen nearby
-	NearbyLog    map[string]time.Time // playerID -> last time seen near this AI
-	SeenNearBody map[string]bool      // playerID -> seen near a body (highly sus)
+	// Perception — only what this bot could plausibly know
+	Suspicion   map[string]float64              // playerID -> 0..1+ how sus they look
+	Witnessed   map[string]bool                 // playerID -> saw them tag someone
+	KnownBodies map[string]bool                 // unreported bodies this bot has seen
+	SeenAtBody  map[string]map[string]bool      // bodyID -> players already counted near it
+	NearbyLog   map[string]time.Time            // playerID -> last time seen nearby
+	LastRoom    string                          // last room the bot was in (for "I was in X")
+	SeenInRoom  map[string]string               // playerID -> room the bot last saw them in
+	SeenWith    map[string]map[string]time.Time // a -> b -> last time seen close together
+
+	// Tagger timing
+	LastTagAt      time.Time
+	Careless       bool // this tag, ignore witnesses (rolled after each tag)
+	LastSabotageAt time.Time
 
 	// Meeting state (reset each meeting)
-	MeetingVoted   bool
-	MeetingChatted bool
-	MeetingChats   int           // number of messages sent this meeting
-	VoteDelay      time.Duration // randomized per meeting so AIs don't all vote at once
+	InMeeting    bool
+	MeetingVoted bool
+	MeetingChats int
+	LastChat     string
+	VoteDelay    time.Duration   // randomized so bots don't all vote at once
+	Accusations  map[string]int  // playerID -> times others accused them this meeting
+	HeardFrom    map[string]bool // "sender>target" pairs already counted
+	AccusedMe    int             // times someone accused this bot this meeting
+	BodyRoom     string          // where this meeting's body was found
+	SaidISaw     bool
+	SaidNotMe    bool
 }
 
 const (
-	AIWaypointReach  = 24.0  // distance to consider waypoint reached
+	AIWaypointReach  = 24.0 // distance to consider waypoint reached
 	AIDecisionDelay  = 500 * time.Millisecond
-	AIStuckThreshold = 20    // ticks (~1 second) before stuck recovery
-	AINearbyRange    = 200.0 // range to log nearby players
-)
+	AIStuckThreshold = 20 // ticks (~1 second) before stuck recovery
+	AIStuckAvoidFor  = 8 * time.Second
+	AIVisionRadius   = 250.0 // matches the client's fog of war
+	AIReducedVision  = 100.0 // during Lights Out
+	AINearBodyRange  = 150.0 // standing this close to a body looks sus
 
-var aiBotNames = []string{
-	"Astro", "Cosmo", "Nova", "Pixel", "Zippy", "Blip", "Fizz", "Boop",
-	"Bleep", "Whirr", "Spark", "Beam", "Comet", "Orbit",
-}
+	// How long a bot stands at a task. Roughly how long a young kid takes
+	// on the mini-games — shorter makes the bot crew win before a human
+	// tagger gets a chance to play.
+	AITaskTimeMin = 7 * time.Second
+	AITaskTimeMax = 12 * time.Second
+)
 
 func NewAIBrain(playerID string, role Role) *AIBrain {
 	return &AIBrain{
-		PlayerID:     playerID,
-		Role:         role,
-		Difficulty:   AINormal,
-		Goal:         GoalIdle,
-		NearbyLog:    make(map[string]time.Time),
-		SeenNearBody: make(map[string]bool),
+		Careless:       rand.Float64() < aiProfiles[AINormal].Carelessness,
+		PlayerID:       playerID,
+		Role:           role,
+		Difficulty:     AINormal,
+		Goal:           GoalIdle,
+		Avoid:          make(map[string]time.Time),
+		Suspicion:      make(map[string]float64),
+		Witnessed:      make(map[string]bool),
+		KnownBodies:    make(map[string]bool),
+		SeenAtBody:     make(map[string]map[string]bool),
+		NearbyLog:      make(map[string]time.Time),
+		SeenInRoom:     make(map[string]string),
+		SeenWith:       make(map[string]map[string]time.Time),
+		LastSabotageAt: time.Now(),
+		Accusations:    make(map[string]int),
+		HeardFrom:      make(map[string]bool),
 	}
 }
 
 // AITick is called from the game loop while gs.mu is HELD.
 // It updates the AI's MoveInputs and may complete tasks / freeze targets.
 func AITick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
-	// Skip AI if frozen — ghosts (especially crewmate ghosts) could still
-	// do tasks, but for simplicity we just freeze AI in place when tagged.
-	if gs.Frozen[ai.PlayerID] {
+	frozen := gs.Frozen[ai.PlayerID]
+
+	// A frozen tagger has nothing left to do. Frozen crewmates keep going
+	// as ghosts so their tasks still count toward a crew win.
+	if frozen && ai.Role == RoleTagger {
 		gs.MoveInputs[ai.PlayerID] = Vec2{}
 		return
 	}
 
 	// During meetings, AI brains pick a vote / send a message
 	if gs.Meeting != nil {
+		if !ai.InMeeting {
+			aiOnMeetingStart(gs, ai, now)
+		}
 		gs.MoveInputs[ai.PlayerID] = Vec2{}
-		aiMeetingTick(gs, room, ai, now)
+		if !frozen {
+			aiMeetingTick(gs, room, ai, now)
+		}
 		return
 	}
-
-	// Reset meeting flags when no meeting
-	if ai.MeetingVoted || ai.MeetingChatted {
-		ai.MeetingVoted = false
-		ai.MeetingChatted = false
-		ai.MeetingChats = 0
-		ai.VoteDelay = 0
-		// Clear stale suspicion data after each meeting
-		ai.SeenNearBody = make(map[string]bool)
+	if ai.InMeeting {
+		aiOnMeetingEnd(gs, ai, now)
 	}
 
 	pos := gs.Positions[ai.PlayerID]
-
-	// --- Stuck detection ---
-	dx := pos.X - ai.LastPos.X
-	dy := pos.Y - ai.LastPos.Y
-	movedSq := dx*dx + dy*dy
-	if movedSq < 1.0 && ai.Goal != GoalDoingTask && ai.Goal != GoalFakeTask && ai.Goal != GoalIdle {
-		ai.StuckTicks++
-	} else {
-		ai.StuckTicks = 0
-	}
-	ai.LastPos = pos
-
-	// If stuck too long, abandon current goal and path to nearest waypoint
-	if ai.StuckTicks >= AIStuckThreshold {
-		ai.StuckTicks = 0
-		ai.Goal = GoalIdle
-		ai.GoalTarget = ""
-		// Find nearest walkable waypoint and path there to unstick
-		wpIdx := nearestWaypoint(pos)
-		wp := DefaultWaypoints[wpIdx]
-		ai.Path = []Vec2{wp}
-		ai.PathIdx = 0
-		ai.Goal = GoalWander
-		ai.NextDecision = now.Add(AIDecisionDelay * 3) // give extra time to reach waypoint
+	aiCheckStuck(ai, pos, now)
+	// Updated every tick so "I was in X" matches what others last saw
+	if room := gs.Map.GetRoomAt(pos); room != "" {
+		ai.LastRoom = room
 	}
 
-	// --- Awareness: log nearby players (for voting intelligence) ---
-	if now.After(ai.NextDecision) {
-		for otherID, otherPos := range gs.Positions {
-			if otherID == ai.PlayerID || gs.Frozen[otherID] {
-				continue
-			}
-			odx := pos.X - otherPos.X
-			ody := pos.Y - otherPos.Y
-			if odx*odx+ody*ody <= AINearbyRange*AINearbyRange {
-				ai.NearbyLog[otherID] = now
-			}
+	if !now.Before(ai.NextDecision) {
+		if !frozen {
+			aiPerceive(gs, ai, pos, now)
 		}
-		// Check if any alive player is near a body (sus!)
-		for bodyID, bodyPos := range gs.BodyPos {
-			if gs.BodyReported[bodyID] {
-				continue
-			}
-			for otherID, otherPos := range gs.Positions {
-				if otherID == ai.PlayerID || gs.Frozen[otherID] {
-					continue
-				}
-				bdx := otherPos.X - bodyPos.X
-				bdy := otherPos.Y - bodyPos.Y
-				if bdx*bdx+bdy*bdy <= 150*150 {
-					ai.SeenNearBody[otherID] = true
-				}
-			}
-		}
-	}
-
-	// Periodically re-plan / pick a new goal
-	if now.After(ai.NextDecision) {
-		aiPickGoal(gs, ai, pos)
+		aiDecide(gs, room, ai, pos, now)
 		ai.NextDecision = now.Add(AIDecisionDelay)
 	}
 
-	// Body discovery — only crewmate AI reports bodies
-	if ai.Role == RoleCrewmate {
-		for bodyID, bodyPos := range gs.BodyPos {
-			if gs.BodyReported[bodyID] {
-				continue
-			}
-			dx := pos.X - bodyPos.X
-			dy := pos.Y - bodyPos.Y
-			if dx*dx+dy*dy <= ReportRange*ReportRange {
-				gs.BodyReported[bodyID] = true
-				// Trigger meeting in a goroutine (must release lock first)
-				go func(r *Room, callerID, bid string) {
-					defer func() {
-						if rec := recover(); rec != nil {
-							log.Printf("ai start meeting panic: %v", rec)
-						}
-					}()
-					startMeeting(r, callerID, "body", bid)
-				}(room, ai.PlayerID, bodyID)
-				return
-			}
-		}
-	}
-
-	// Tagger: try to tag if conditions are right
 	if ai.Role == RoleTagger {
 		aiTaggerTryTag(gs, room, ai, pos, now)
 	}
@@ -200,37 +187,8 @@ func AITick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 	if ai.Goal == GoalDoingTask || ai.Goal == GoalFakeTask {
 		gs.MoveInputs[ai.PlayerID] = Vec2{}
 		if now.After(ai.GoalDeadline) {
-			if ai.Goal == GoalDoingTask && ai.Role == RoleCrewmate {
-				// Complete the task
-				if gs.Tasks.CompleteTask(ai.PlayerID, ai.GoalTarget, RoleCrewmate) {
-					progress := gs.Tasks.Progress()
-					allDone := gs.Tasks.AllTasksDone()
-					// Send progress update to all players (async, panic-safe)
-					go func(r *Room, prog float64, done bool) {
-						defer func() {
-							if rec := recover(); rec != nil {
-								log.Printf("ai task complete broadcast panic: %v", rec)
-							}
-						}()
-						game := r.Game
-						if game == nil {
-							return
-						}
-						for _, id := range r.snapshotPlayerIDs() {
-							if r.Game == nil {
-								return
-							}
-							tasks := game.Tasks.GetPlayerTasks(id)
-							r.sendTo(id, MsgTaskProgress, TaskProgressPayload{
-								Progress: prog,
-								Tasks:    tasks,
-							})
-						}
-						if done {
-							endGame(r, "crew")
-						}
-					}(room, progress, allDone)
-				}
+			if ai.Goal == GoalDoingTask {
+				aiFinishTask(gs, room, ai)
 			}
 			ai.Goal = GoalIdle
 			ai.GoalTarget = ""
@@ -239,136 +197,150 @@ func AITick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 		return
 	}
 
-	// Move along the path
-	if ai.PathIdx < len(ai.Path) {
-		target := ai.Path[ai.PathIdx]
-		dx := target.X - pos.X
-		dy := target.Y - pos.Y
-		distSq := dx*dx + dy*dy
-
-		if distSq < AIWaypointReach*AIWaypointReach {
-			// Reached this waypoint, move to next
-			ai.PathIdx++
-			if ai.PathIdx >= len(ai.Path) {
-				// Arrived at final destination
-				gs.MoveInputs[ai.PlayerID] = Vec2{}
-				aiOnArrive(gs, ai, now)
-				return
-			}
-			target = ai.Path[ai.PathIdx]
-			dx = target.X - pos.X
-			dy = target.Y - pos.Y
-		}
-
-		// Set movement direction
-		mag := math.Sqrt(dx*dx + dy*dy)
-		if mag > 0 {
-			gs.MoveInputs[ai.PlayerID] = Vec2{dx / mag, dy / mag}
-		}
-		return
-	}
-
-	// No path, idle
-	gs.MoveInputs[ai.PlayerID] = Vec2{}
+	aiFollowPath(gs, room, ai, pos, now)
 }
 
-// aiPickGoal selects a new goal based on role
-func aiPickGoal(gs *GameState, ai *AIBrain, pos Vec2) {
-	if ai.Goal != GoalIdle && ai.Goal != GoalWander {
+// aiCheckStuck notices when a bot has been pressing into a wall and makes
+// it give up on that action for a while so the utility picker chooses
+// something else instead of retrying the same blocked route forever.
+func aiCheckStuck(ai *AIBrain, pos Vec2, now time.Time) {
+	dx := pos.X - ai.LastPos.X
+	dy := pos.Y - ai.LastPos.Y
+	ai.LastPos = pos
+	moving := ai.PathIdx < len(ai.Path) && ai.Goal != GoalDoingTask && ai.Goal != GoalFakeTask
+	if !moving || dx*dx+dy*dy >= 1.0 {
+		ai.StuckTicks = 0
+		return
+	}
+	ai.StuckTicks++
+	if ai.StuckTicks < AIStuckThreshold {
+		return
+	}
+	dbg("AI %s stuck at (%.0f,%.0f) on goal %d/%s", ai.PlayerID, pos.X, pos.Y, ai.Goal, ai.GoalTarget)
+	ai.StuckTicks = 0
+	ai.Avoid[aiOptionKey(ai.Goal, ai.GoalTarget)] = now.Add(AIStuckAvoidFor)
+	ai.Goal = GoalIdle
+	ai.GoalTarget = ""
+	ai.Path = nil
+	ai.PathIdx = 0
+	ai.NextDecision = now
+}
+
+// aiSetPath plans a route to `to`. Ghosts fly straight through walls.
+func aiSetPath(gs *GameState, ai *AIBrain, from, to Vec2) {
+	if gs.Frozen[ai.PlayerID] {
+		ai.Path = []Vec2{to}
+	} else {
+		ai.Path = FindPath(from, to)
+	}
+	ai.PathIdx = 0
+	ai.GoalPos = to
+}
+
+func aiFollowPath(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.Time) {
+	if ai.PathIdx >= len(ai.Path) {
+		gs.MoveInputs[ai.PlayerID] = Vec2{}
 		return
 	}
 
-	now := time.Now()
-
-	if ai.Role == RoleCrewmate {
-		// Priority 1: fix active sabotage (50% chance to volunteer)
-		if gs.Sabotage.Active != "" && rand.Float64() < 0.5 {
-			stations := SabotageFixStations[gs.Sabotage.Active]
-			if len(stations) > 0 {
-				// For meltdown, pick a random station; for others, there's only one
-				station := stations[rand.Intn(len(stations))]
-				// Don't go to an already-fixed meltdown station
-				if gs.Sabotage.Active != SabotageMeltdown || !gs.Sabotage.MeltdownFixed[station.ID] {
-					ai.Goal = GoalFixSabotage
-					ai.GoalTarget = station.ID
-					ai.Path = FindPath(pos, station.Position)
-					ai.PathIdx = 0
-					return
-				}
-			}
+	target := ai.Path[ai.PathIdx]
+	dx := target.X - pos.X
+	dy := target.Y - pos.Y
+	if dx*dx+dy*dy < AIWaypointReach*AIWaypointReach {
+		// Reached this waypoint, move to next
+		ai.PathIdx++
+		if ai.PathIdx >= len(ai.Path) {
+			// Arrived at final destination
+			gs.MoveInputs[ai.PlayerID] = Vec2{}
+			aiOnArrive(gs, room, ai, pos, now)
+			return
 		}
-
-		// Priority 2: Find an uncompleted task and go to it
-		assignments := gs.Tasks.Assignments[ai.PlayerID]
-		for _, a := range assignments {
-			if !a.Completed {
-				station := findStation(gs, a.StationID)
-				if station != nil {
-					ai.Goal = GoalGoToTask
-					ai.GoalTarget = a.StationID
-					ai.Path = FindPath(pos, station.Position)
-					ai.PathIdx = 0
-					return
-				}
-			}
-		}
-		// All tasks done — wander
-		aiWander(ai, pos)
-	} else {
-		// Tagger: try to trigger sabotage if conditions allow
-		if gs.Sabotage.Active == "" && now.After(gs.SabotageCooldown) {
-			chance := 0.15
-			// Meltdown is rarer and only if not already used
-			if !gs.Sabotage.UsedMeltdown && rand.Float64() < 0.05 {
-				aiTriggerSabotage(gs, gs.Room, ai, SabotageMeltdown, now)
-				return
-			}
-			if rand.Float64() < chance {
-				types := []SabotageType{SabotageLightsOut, SabotageCommsDown}
-				aiTriggerSabotage(gs, gs.Room, ai, types[rand.Intn(2)], now)
-				return
-			}
-		}
-
-		// 50/50 fake a task or wander toward a player
-		if rand.Float64() < 0.5 {
-			// Fake task: walk to a station
-			assignments := gs.Tasks.Assignments[ai.PlayerID]
-			if len(assignments) > 0 {
-				a := assignments[rand.Intn(len(assignments))]
-				station := findStation(gs, a.StationID)
-				if station != nil {
-					ai.Goal = GoalGoToTask
-					ai.GoalTarget = a.StationID
-					ai.Path = FindPath(pos, station.Position)
-					ai.PathIdx = 0
-					return
-				}
-			}
-		}
-		// Wander toward another player
-		aiHunt(gs, ai, pos)
+		target = ai.Path[ai.PathIdx]
+		dx = target.X - pos.X
+		dy = target.Y - pos.Y
 	}
+
+	mag := math.Sqrt(dx*dx + dy*dy)
+	if mag > 0 {
+		gs.MoveInputs[ai.PlayerID] = Vec2{dx / mag, dy / mag}
+	}
+}
+
+// aiOnArrive handles what happens when AI reaches its destination
+func aiOnArrive(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.Time) {
+	switch ai.Goal {
+	case GoalGoToTask:
+		// "Perform" the task — stand still for a few seconds
+		ai.GoalDeadline = now.Add(AITaskTimeMin + time.Duration(rand.Int63n(int64(AITaskTimeMax-AITaskTimeMin))))
+		if ai.Role == RoleCrewmate {
+			ai.Goal = GoalDoingTask
+		} else {
+			ai.Goal = GoalFakeTask
+		}
+		return
+
+	case GoalReportBody:
+		bodyID := ai.GoalTarget
+		bodyPos, exists := gs.BodyPos[bodyID]
+		if exists && !gs.BodyReported[bodyID] && withinRange(pos, bodyPos, ReportRange) {
+			gs.BodyReported[bodyID] = true
+			// Trigger meeting in a goroutine (must release lock first)
+			go func(r *Room, callerID, bid string) {
+				defer func() {
+					if rec := recover(); rec != nil {
+						log.Printf("ai start meeting panic: %v", rec)
+					}
+				}()
+				startMeeting(r, callerID, "body", bid)
+			}(room, ai.PlayerID, bodyID)
+		}
+
+	case GoalFixSabotage:
+		if allFixed, ok := gs.fixSabotageLocked(ai.PlayerID, ai.GoalTarget); ok && allFixed {
+			go func(r *Room) {
+				defer func() {
+					if rec := recover(); rec != nil {
+						log.Printf("ai fix sabotage broadcast panic: %v", rec)
+					}
+				}()
+				r.broadcast(MsgSabotageEnd, SabotageEndPayload{})
+			}(room)
+		}
+	}
+
+	ai.Goal = GoalIdle
+	ai.GoalTarget = ""
+	ai.NextDecision = now
+}
+
+// aiFinishTask marks the bot's current task complete (ghosts included) and
+// broadcasts progress, ending the game if that was the last task.
+func aiFinishTask(gs *GameState, room *Room, ai *AIBrain) {
+	if !gs.Tasks.CompleteTask(ai.PlayerID, ai.GoalTarget, RoleCrewmate) {
+		return
+	}
+	allDone := gs.Tasks.AllTasksDone()
+	// Snapshot while we hold the lock — the goroutine must not touch gs.Tasks
+	payloads := gs.taskProgressLocked()
+	go func(r *Room, done bool) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("ai task complete broadcast panic: %v", rec)
+			}
+		}()
+		r.sendTaskProgress(payloads)
+		if done {
+			endGame(r, "crew")
+		}
+	}(room, allDone)
 }
 
 // aiTriggerSabotage activates a sabotage from AI tagger (lock is held)
-func aiTriggerSabotage(gs *GameState, room *Room, ai *AIBrain, sabType SabotageType, now time.Time) {
-	// Apply sabotage directly (lock is held)
-	switch sabType {
-	case SabotageLightsOut, SabotageCommsDown:
-		gs.Sabotage.Active = sabType
-		gs.Sabotage.ExpiresAt = now.Add(SabotageDuration)
-		gs.SabotageCooldown = now.Add(SabotageCooldown)
-	case SabotageMeltdown:
-		if gs.Sabotage.UsedMeltdown {
-			return
-		}
-		gs.Sabotage.Active = sabType
-		gs.Sabotage.ExpiresAt = now.Add(MeltdownDuration)
-		gs.Sabotage.UsedMeltdown = true
-		gs.Sabotage.MeltdownFixed = make(map[string]bool)
+func aiTriggerSabotage(gs *GameState, room *Room, ai *AIBrain, sabType SabotageType, now time.Time) bool {
+	if !gs.trySabotageLocked(ai.PlayerID, sabType, now) {
+		return false
 	}
-
+	ai.LastSabotageAt = now
 	dbg("AI tagger %s triggered %s", ai.PlayerID, sabType)
 
 	duration := SabotageDuration.Seconds()
@@ -388,107 +360,10 @@ func aiTriggerSabotage(gs *GameState, room *Room, ai *AIBrain, sabType SabotageT
 			Stations: SabotageFixStations[sabType],
 		})
 	}(room)
+	return true
 }
 
-// aiOnArrive handles what happens when AI reaches its destination
-func aiOnArrive(gs *GameState, ai *AIBrain, now time.Time) {
-	switch ai.Goal {
-	case GoalGoToTask:
-		// "Perform" the task — stand still for a few seconds
-		duration := time.Duration(4+rand.Intn(4)) * time.Second
-		ai.GoalDeadline = now.Add(duration)
-		if ai.Role == RoleCrewmate {
-			ai.Goal = GoalDoingTask
-		} else {
-			ai.Goal = GoalFakeTask
-		}
-	case GoalHunt:
-		// Just arrived near a target; tagger logic will handle the freeze
-		ai.Goal = GoalIdle
-	case GoalFixSabotage:
-		// AI crewmate arrived at fix station — fix it directly (lock is held)
-		stationID := ai.GoalTarget
-		if gs.Sabotage.Active != "" {
-			stations := SabotageFixStations[gs.Sabotage.Active]
-			var station *FixStation
-			for i := range stations {
-				if stations[i].ID == stationID {
-					station = &stations[i]
-					break
-				}
-			}
-			if station != nil {
-				// Range check
-				pos := gs.Positions[ai.PlayerID]
-				dx := pos.X - station.Position.X
-				dy := pos.Y - station.Position.Y
-				if dx*dx+dy*dy <= SabotageFixRange*SabotageFixRange {
-					allFixed := false
-					if gs.Sabotage.Active == SabotageMeltdown {
-						gs.Sabotage.MeltdownFixed[stationID] = true
-						if len(gs.Sabotage.MeltdownFixed) >= 2 {
-							gs.Sabotage.Active = ""
-							allFixed = true
-						}
-					} else {
-						gs.Sabotage.Active = ""
-						allFixed = true
-					}
-					if allFixed {
-						go func(r *Room) {
-							defer func() {
-								if rec := recover(); rec != nil {
-									log.Printf("ai fix sabotage broadcast panic: %v", rec)
-								}
-							}()
-							r.broadcast(MsgSabotageEnd, SabotageEndPayload{})
-						}(gs.Room)
-					}
-				}
-			}
-		}
-		ai.Goal = GoalIdle
-	default:
-		ai.Goal = GoalIdle
-	}
-}
-
-// aiWander picks a random room to walk to
-func aiWander(ai *AIBrain, pos Vec2) {
-	// Pick a random room waypoint (indices 0-5), but also consider secondary
-	// waypoints (13+) so AI visits different parts of rooms
-	allRoom := []int{0, 1, 2, 3, 4, 5, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22}
-	target := DefaultWaypoints[allRoom[rand.Intn(len(allRoom))]]
-	ai.Goal = GoalWander
-	ai.Path = FindPath(pos, target)
-	ai.PathIdx = 0
-}
-
-// aiHunt picks a random alive player to walk toward
-func aiHunt(gs *GameState, ai *AIBrain, pos Vec2) {
-	candidates := []string{}
-	for id := range gs.Positions {
-		if id == ai.PlayerID {
-			continue
-		}
-		if gs.Frozen[id] {
-			continue
-		}
-		candidates = append(candidates, id)
-	}
-	if len(candidates) == 0 {
-		aiWander(ai, pos)
-		return
-	}
-	target := candidates[rand.Intn(len(candidates))]
-	targetPos := gs.Positions[target]
-	ai.Goal = GoalHunt
-	ai.GoalTarget = target
-	ai.Path = FindPath(pos, targetPos)
-	ai.PathIdx = 0
-}
-
-// aiTaggerTryTag attempts to freeze a nearby crewmate if no witnesses are around
+// aiTaggerTryTag freezes a crewmate in range if the coast is clear
 func aiTaggerTryTag(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.Time) {
 	if now.Before(gs.TagCooldown) {
 		return
@@ -498,18 +373,12 @@ func aiTaggerTryTag(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.T
 	var nearestID string
 	nearestDist := math.MaxFloat64
 	for id, role := range gs.Roles {
-		if id == ai.PlayerID || role != RoleCrewmate {
+		if id == ai.PlayerID || role != RoleCrewmate || gs.Frozen[id] {
 			continue
 		}
-		if gs.Frozen[id] {
-			continue
-		}
-		other := gs.Positions[id]
-		dx := pos.X - other.X
-		dy := pos.Y - other.Y
-		distSq := dx*dx + dy*dy
-		if distSq < nearestDist && distSq <= TagRange*TagRange {
-			nearestDist = distSq
+		d := distSq(pos, gs.Positions[id])
+		if d < nearestDist && d <= TagRange*TagRange {
+			nearestDist = d
 			nearestID = id
 		}
 	}
@@ -517,30 +386,19 @@ func aiTaggerTryTag(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.T
 		return
 	}
 
-	// Witness check (Normal difficulty): no other crewmate within 250 units
-	if ai.Difficulty == AINormal {
-		for id, role := range gs.Roles {
-			if id == ai.PlayerID || id == nearestID || role != RoleCrewmate {
-				continue
-			}
-			if gs.Frozen[id] {
-				continue
-			}
-			other := gs.Positions[id]
-			dx := pos.X - other.X
-			dy := pos.Y - other.Y
-			if dx*dx+dy*dy <= 250*250 {
-				return // witness present, abort
-			}
-		}
+	// Witness check: no other crewmate close enough to see it happen
+	// (unless this is one of the tagger's careless moments)
+	if !ai.Careless && aiCrewWatching(gs, pos, ai.PlayerID, nearestID) > 0 {
+		return
 	}
 
-	// Tag it (we already hold the lock so manipulate state directly)
-	dbg("AI tagger %s freezing %s", ai.PlayerID, nearestID)
-	gs.Frozen[nearestID] = true
-	gs.BodyPos[nearestID] = gs.Positions[nearestID]
-	gs.MoveInputs[nearestID] = Vec2{}
-	gs.TagCooldown = now.Add(TagCooldown)
+	bodyPos, ok := gs.tagLocked(ai.PlayerID, nearestID, now)
+	if !ok {
+		return
+	}
+	ai.LastTagAt = now
+	ai.Careless = rand.Float64() < aiProfiles[ai.Difficulty].Carelessness
+	dbg("AI tagger %s froze %s", ai.PlayerID, nearestID)
 
 	// Broadcast freeze event in goroutine to avoid lock issues
 	go func(r *Room, victimID string, bodyPos Vec2) {
@@ -557,202 +415,28 @@ func aiTaggerTryTag(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.T
 			Position: bodyPos,
 		})
 		checkWinConditions(r)
-	}(room, nearestID, gs.Positions[nearestID])
+	}(room, nearestID, bodyPos)
 }
 
-// aiMeetingTick handles AI behavior during a meeting
-func aiMeetingTick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
-	if gs.Meeting == nil {
-		return
-	}
-
-	// Send chat messages during discussion phase (up to 3 per meeting)
-	if ai.MeetingChats < 3 && gs.Meeting.Phase == "discussion" {
-		// Stagger: only send after a delay relative to meeting start
-		elapsed := now.Sub(gs.Meeting.StartTime)
-		if elapsed > 3*time.Second && rand.Float64() < 0.03 { // ~3% chance per tick
-			ai.MeetingChats++
-			ai.MeetingChatted = true
-			messageID := pickAIChatMessage(gs, ai)
-			if messageID != "" && gs.Meeting.CanSendChat(ai.PlayerID) {
-				gs.Meeting.RecordChat(ai.PlayerID)
-				go func(r *Room, sender, msg string) {
-					defer func() {
-						if rec := recover(); rec != nil {
-							log.Printf("ai chat broadcast panic: %v", rec)
-						}
-					}()
-					r.broadcast(MsgChatMessage, ChatMessagePayload{
-						SenderID:  sender,
-						MessageID: msg,
-					})
-				}(room, ai.PlayerID, messageID)
-			}
-		}
-	}
-
-	// Vote during voting phase
-	if !ai.MeetingVoted && gs.Meeting.Phase == "voting" {
-		// Randomize each AI's vote delay so they don't all vote at the same instant
-		if ai.VoteDelay == 0 {
-			ai.VoteDelay = time.Duration(2+rand.Intn(8)) * time.Second
-		}
-		discDur := time.Duration(gs.Settings.DiscussionTime * float64(time.Second))
-		elapsed := now.Sub(gs.Meeting.StartTime) - discDur
-		if elapsed > ai.VoteDelay {
-			targetID := pickAIVoteTarget(gs, ai)
-			if gs.Meeting.CastVote(ai.PlayerID, targetID) {
-				ai.MeetingVoted = true
-				// Broadcast vote_cast in a goroutine (we hold gs.mu here)
-				go func(r *Room, voter string) {
-					defer func() {
-						if rec := recover(); rec != nil {
-							log.Printf("ai vote broadcast panic: %v", rec)
-						}
-					}()
-					r.broadcast(MsgVoteCast, VoteCastPayload{VoterID: voter})
-				}(room, ai.PlayerID)
-			}
-		}
-	}
-}
-
-// pickAIChatMessage returns a contextual quick message ID for the AI to send
-func pickAIChatMessage(gs *GameState, ai *AIBrain) string {
-	if ai.Role == RoleCrewmate {
-		// Crewmate: share useful info
-		// If seen someone near a body, accuse them
-		for playerID := range ai.SeenNearBody {
-			// Find this player's color to send the right "sus" message
-			if color, ok := getPlayerColor(gs, playerID); ok {
-				msgID := "sus_" + color
-				return msgID
-			}
-		}
-		// Share current location
-		pos := gs.Positions[ai.PlayerID]
-		room := gs.Map.GetRoomAt(pos)
-		if room != "" {
-			locMsg := "loc_" + room
-			// 50% location, 50% other info
-			if rand.Float64() < 0.5 {
-				return locMsg
-			}
-		}
-		// Mix of defense/info
-		options := []string{"doing_task", "where", "idk", "trust_me", "with_me", "i_saw"}
-		return options[rand.Intn(len(options))]
-	}
-
-	// Tagger: deflect and accuse others
-	// Pick a random alive crewmate to accuse
-	if rand.Float64() < 0.5 {
-		for _, id := range gs.Meeting.AlivePlayers {
-			if id == ai.PlayerID || gs.Frozen[id] {
-				continue
-			}
-			if gs.Roles[id] == RoleCrewmate {
-				if color, ok := getPlayerColor(gs, id); ok {
-					return "sus_" + color
-				}
-			}
-		}
-	}
-
-	// Defense messages
-	options := []string{"not_me", "doing_task", "trust_me", "where", "idk"}
-	return options[rand.Intn(len(options))]
-}
-
-// getPlayerColor returns the color name for a player ID from the pre-built map.
-// This avoids taking Room.mu while gs.mu is held (which would risk deadlock).
-func getPlayerColor(gs *GameState, playerID string) (string, bool) {
-	color, ok := gs.PlayerColors[playerID]
-	return color, ok
-}
-
-// pickAIVoteTarget decides who the AI votes for using suspicion data
-func pickAIVoteTarget(gs *GameState, ai *AIBrain) string {
-	if gs.Meeting == nil {
-		return ""
-	}
-
-	alive := gs.Meeting.AlivePlayers
-	candidates := []string{}
-	for _, id := range alive {
-		if id == ai.PlayerID {
+// aiCrewWatching counts alive crewmates (other than the excluded IDs) within
+// vision range of pos — i.e. people who would see something happen there.
+func aiCrewWatching(gs *GameState, pos Vec2, exclude ...string) int {
+	n := 0
+outer:
+	for id, role := range gs.Roles {
+		if role != RoleCrewmate || gs.Frozen[id] {
 			continue
 		}
-		candidates = append(candidates, id)
-	}
-
-	if len(candidates) == 0 {
-		return ""
-	}
-
-	if ai.Role == RoleCrewmate {
-		// --- Crewmate voting logic ---
-		// Priority 1: vote for someone seen near a body (very sus)
-		var susPlayers []string
-		for _, id := range candidates {
-			if ai.SeenNearBody[id] {
-				susPlayers = append(susPlayers, id)
+		for _, ex := range exclude {
+			if id == ex {
+				continue outer
 			}
 		}
-		if len(susPlayers) > 0 {
-			return susPlayers[rand.Intn(len(susPlayers))]
-		}
-
-		// Priority 2: vote for someone NOT seen recently (strangers are sus)
-		// Players the AI hasn't encountered are more likely to be the tagger
-		// skulking in a different part of the map
-		var unseenPlayers []string
-		recentThreshold := time.Now().Add(-15 * time.Second)
-		for _, id := range candidates {
-			lastSeen, seen := ai.NearbyLog[id]
-			if !seen || lastSeen.Before(recentThreshold) {
-				unseenPlayers = append(unseenPlayers, id)
-			}
-		}
-		if len(unseenPlayers) > 0 && rand.Float64() < 0.6 {
-			return unseenPlayers[rand.Intn(len(unseenPlayers))]
-		}
-
-		// 25% chance to skip if no strong leads
-		if rand.Float64() < 0.25 {
-			return ""
-		}
-
-		// Fallback: random
-		return candidates[rand.Intn(len(candidates))]
-	}
-
-	// --- Tagger voting logic ---
-	// Strategy: deflect suspicion
-
-	// Try to vote for the meeting caller (deflect attention onto them)
-	callerID := gs.Meeting.CallerID
-	if callerID != ai.PlayerID && rand.Float64() < 0.4 {
-		for _, id := range candidates {
-			if id == callerID {
-				return id
-			}
+		if withinRange(pos, gs.Positions[id], AIVisionRadius) {
+			n++
 		}
 	}
-
-	// Vote for someone who was near the body (make it look like you're "helping")
-	for _, id := range candidates {
-		if ai.SeenNearBody[id] && rand.Float64() < 0.5 {
-			return id
-		}
-	}
-
-	// 20% chance to skip (taggers skip less to avoid looking passive)
-	if rand.Float64() < 0.2 {
-		return ""
-	}
-
-	return candidates[rand.Intn(len(candidates))]
+	return n
 }
 
 func findStation(gs *GameState, stationID string) *TaskStation {
@@ -762,4 +446,14 @@ func findStation(gs *GameState, stationID string) *TaskStation {
 		}
 	}
 	return nil
+}
+
+func distSq(a, b Vec2) float64 {
+	dx := a.X - b.X
+	dy := a.Y - b.Y
+	return dx*dx + dy*dy
+}
+
+func withinRange(a, b Vec2, r float64) bool {
+	return distSq(a, b) <= r*r
 }

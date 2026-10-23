@@ -5,41 +5,41 @@ import "encoding/json"
 type MsgType string
 
 const (
-	MsgCreateRoom   MsgType = "create_room"
-	MsgJoinRoom     MsgType = "join_room"
-	MsgLeaveRoom    MsgType = "leave_room"
-	MsgRoomState    MsgType = "room_state"
-	MsgStartGame    MsgType = "start_game"
-	MsgGameStarted  MsgType = "game_started"
-	MsgPlayerJoined MsgType = "player_joined"
-	MsgPlayerLeft   MsgType = "player_left"
-	MsgError        MsgType = "error"
-	MsgAddAI        MsgType = "add_ai"
-	MsgRemoveAI     MsgType = "remove_ai"
-	MsgMove         MsgType = "move"
-	MsgPositions    MsgType = "positions"
-	MsgMapData      MsgType = "map_data"
-	MsgTaskStart    MsgType = "task_start"
-	MsgTaskData     MsgType = "task_data"
-	MsgTaskComplete MsgType = "task_complete"
-	MsgTaskProgress MsgType = "task_progress"
-	MsgGameOver     MsgType = "game_over"
-	MsgTagPlayer    MsgType = "tag_player"
-	MsgPlayerFrozen MsgType = "player_frozen"
-	MsgReportBody   MsgType = "report_body"
-	MsgEmergency    MsgType = "emergency"
-	MsgMeetingStart MsgType = "meeting_start"
-	MsgChatMessage  MsgType = "chat_message"
-	MsgCastVote     MsgType = "cast_vote"
-	MsgVoteCast     MsgType = "vote_cast"
-	MsgMeetingEnd   MsgType = "meeting_end"
-	MsgCooldown       MsgType = "cooldown"
-	MsgRoomSettings   MsgType = "room_settings"   // client→server: host updates settings
-	MsgSabotage       MsgType = "sabotage"       // client→server: tagger activates
-	MsgSabotageStart  MsgType = "sabotage_start"  // server→all: sabotage began
-	MsgSabotageEnd    MsgType = "sabotage_end"    // server→all: sabotage cleared
-	MsgSabotageFix    MsgType = "sabotage_fix"    // client→server: crewmate fixes
-	MsgMeetingPhase   MsgType = "meeting_phase"   // server→all: phase changed
+	MsgCreateRoom    MsgType = "create_room"
+	MsgJoinRoom      MsgType = "join_room"
+	MsgLeaveRoom     MsgType = "leave_room"
+	MsgRoomState     MsgType = "room_state"
+	MsgStartGame     MsgType = "start_game"
+	MsgGameStarted   MsgType = "game_started"
+	MsgPlayerJoined  MsgType = "player_joined"
+	MsgPlayerLeft    MsgType = "player_left"
+	MsgError         MsgType = "error"
+	MsgAddAI         MsgType = "add_ai"
+	MsgRemoveAI      MsgType = "remove_ai"
+	MsgMove          MsgType = "move"
+	MsgPositions     MsgType = "positions"
+	MsgMapData       MsgType = "map_data"
+	MsgTaskStart     MsgType = "task_start"
+	MsgTaskData      MsgType = "task_data"
+	MsgTaskComplete  MsgType = "task_complete"
+	MsgTaskProgress  MsgType = "task_progress"
+	MsgGameOver      MsgType = "game_over"
+	MsgTagPlayer     MsgType = "tag_player"
+	MsgPlayerFrozen  MsgType = "player_frozen"
+	MsgReportBody    MsgType = "report_body"
+	MsgEmergency     MsgType = "emergency"
+	MsgMeetingStart  MsgType = "meeting_start"
+	MsgChatMessage   MsgType = "chat_message"
+	MsgCastVote      MsgType = "cast_vote"
+	MsgVoteCast      MsgType = "vote_cast"
+	MsgMeetingEnd    MsgType = "meeting_end"
+	MsgCooldown      MsgType = "cooldown"
+	MsgRoomSettings  MsgType = "room_settings"  // client→server: host updates settings
+	MsgSabotage      MsgType = "sabotage"       // client→server: tagger activates
+	MsgSabotageStart MsgType = "sabotage_start" // server→all: sabotage began
+	MsgSabotageEnd   MsgType = "sabotage_end"   // server→all: sabotage cleared
+	MsgSabotageFix   MsgType = "sabotage_fix"   // client→server: crewmate fixes
+	MsgMeetingPhase  MsgType = "meeting_phase"  // server→all: phase changed
 )
 
 type Envelope struct {
@@ -108,7 +108,7 @@ type TaskProgressPayload struct {
 }
 
 type GameOverPayload struct {
-	Winner string   `json:"winner"` // "crew" or "tagger"
+	Winner string           `json:"winner"` // "crew" or "tagger"
 	Roles  []PlayerRoleInfo `json:"roles"`
 }
 
@@ -134,12 +134,13 @@ type ReportBodyPayload struct {
 }
 
 type MeetingStartPayload struct {
-	CallerID         string  `json:"callerId"`
-	Reason           string  `json:"reason"` // "body" or "emergency"
-	BodyID           string  `json:"bodyId,omitempty"`
-	DiscussionTime   float64 `json:"discussionTime"` // seconds
-	VotingTime       float64 `json:"votingTime"`     // seconds
-	AlivePlayers     []string `json:"alivePlayers"`
+	CallerID       string   `json:"callerId"`
+	Reason         string   `json:"reason"` // "body" or "emergency"
+	BodyID         string   `json:"bodyId,omitempty"`
+	BodyRoom       string   `json:"bodyRoom,omitempty"` // room the body was in ("" = hallway)
+	DiscussionTime float64  `json:"discussionTime"`     // seconds
+	VotingTime     float64  `json:"votingTime"`         // seconds
+	AlivePlayers   []string `json:"alivePlayers"`
 }
 
 type ChatMessagePayload struct {
@@ -156,9 +157,9 @@ type VoteCastPayload struct {
 }
 
 type MeetingEndPayload struct {
-	Votes      map[string]string `json:"votes"`     // voterID -> targetID ("" = skip)
-	EjectedID  string            `json:"ejectedId"` // empty if no one ejected
-	WasTagger  bool              `json:"wasTagger"` // true if ejected was the tagger
+	Votes     map[string]string `json:"votes"`     // voterID -> targetID ("" = skip)
+	EjectedID string            `json:"ejectedId"` // empty if no one ejected
+	WasTagger bool              `json:"wasTagger"` // true if ejected was the tagger
 }
 
 type MeetingPhasePayload struct {

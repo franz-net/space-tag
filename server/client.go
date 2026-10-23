@@ -257,19 +257,14 @@ func (c *Client) handleLeaveRoom() {
 	}
 
 	room.mu.RLock()
-	inGame := room.Game != nil && room.Phase == PhasePlaying
+	game := room.Game
+	inGame := game != nil && room.Phase == PhasePlaying
 	room.mu.RUnlock()
 
 	// If a game was in progress, the win conditions may have changed
 	// (e.g. tagger left → crew wins) and tasks may need re-broadcasting.
 	if inGame {
-		for _, id := range ids {
-			tasks := room.Game.Tasks.GetPlayerTasks(id)
-			room.sendTo(id, MsgTaskProgress, TaskProgressPayload{
-				Progress: room.Game.Tasks.Progress(),
-				Tasks:    tasks,
-			})
-		}
+		room.sendTaskProgress(game.TaskProgressSnapshot())
 		checkWinConditions(room)
 	}
 }
@@ -314,6 +309,7 @@ func (c *Client) handleStartGame() {
 	room.broadcast(MsgMapData, MapDataPayload{Map: room.Game.Map})
 
 	// Send each player their role and task assignments privately
+	taskProgress := room.Game.TaskProgressSnapshot()
 	ids := room.snapshotPlayerIDs()
 	for _, id := range ids {
 		room.mu.RLock()
@@ -329,11 +325,7 @@ func (c *Client) handleStartGame() {
 			You:  id,
 		})
 		// Send task assignments
-		tasks := room.Game.Tasks.GetPlayerTasks(id)
-		room.sendTo(id, MsgTaskProgress, TaskProgressPayload{
-			Progress: 0,
-			Tasks:    tasks,
-		})
+		room.sendTo(id, MsgTaskProgress, taskProgress[id])
 		// Send initial cooldown to the tagger
 		if role == RoleTagger {
 			room.sendTo(id, MsgCooldown, CooldownPayload{Seconds: 10})
@@ -578,8 +570,8 @@ func (c *Client) handleTaskComplete(payload json.RawMessage) {
 	// Complete the task
 	room.Game.mu.Lock()
 	valid := room.Game.Tasks.CompleteTask(c.id, p.StationID, player.Role)
-	progress := room.Game.Tasks.Progress()
 	allDone := room.Game.Tasks.AllTasksDone()
+	taskProgress := room.Game.taskProgressLocked()
 	room.Game.mu.Unlock()
 
 	if !valid {
@@ -587,13 +579,7 @@ func (c *Client) handleTaskComplete(payload json.RawMessage) {
 	}
 
 	// Send updated progress to all players (each gets their own task list)
-	for _, id := range room.snapshotPlayerIDs() {
-		tasks := room.Game.Tasks.GetPlayerTasks(id)
-		room.sendTo(id, MsgTaskProgress, TaskProgressPayload{
-			Progress: progress,
-			Tasks:    tasks,
-		})
-	}
+	room.sendTaskProgress(taskProgress)
 
 	// Check win condition
 	if allDone {
@@ -920,6 +906,11 @@ func (c *Client) handleChatMessage(payload json.RawMessage) {
 	}
 	room.Game.Meeting.RecordChat(c.id)
 
+	// Let AI players hear accusations
+	room.Game.mu.Lock()
+	aiNotifyChat(room.Game, c.id, p.MessageID, time.Now())
+	room.Game.mu.Unlock()
+
 	// Broadcast
 	room.broadcast(MsgChatMessage, ChatMessagePayload{
 		SenderID:  c.id,
@@ -961,6 +952,10 @@ func startMeeting(room *Room, callerID, reason, bodyID string) {
 		return
 	}
 	game.Meeting = meeting
+	bodyRoom := ""
+	if pos, ok := game.BodyPos[bodyID]; ok {
+		bodyRoom = game.Map.GetRoomAt(pos)
+	}
 	game.mu.Unlock()
 
 	// Teleport everyone to cafeteria
@@ -982,6 +977,7 @@ func startMeeting(room *Room, callerID, reason, bodyID string) {
 		CallerID:       callerID,
 		Reason:         reason,
 		BodyID:         bodyID,
+		BodyRoom:       bodyRoom,
 		DiscussionTime: discTime,
 		VotingTime:     voteTime,
 		AlivePlayers:   alive,

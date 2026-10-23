@@ -336,6 +336,14 @@ func (r *Room) sendTo(playerID string, msgType MsgType, payload interface{}) {
 	}
 }
 
+// sendTaskProgress sends each player their own task_progress payload.
+// Must be called WITHOUT gs.mu held (sendTo takes r.mu).
+func (r *Room) sendTaskProgress(payloads map[string]TaskProgressPayload) {
+	for id, p := range payloads {
+		r.sendTo(id, MsgTaskProgress, p)
+	}
+}
+
 // snapshotPlayerIDs returns a copy of the room's player order under a brief
 // read lock. Use this when you need to iterate players and call methods that
 // take their own locks (sendTo, roomStatePayload, etc.) — calling those from

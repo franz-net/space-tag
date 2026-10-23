@@ -148,6 +148,7 @@ export interface MeetingStartPayload {
   callerId: string;
   reason: "body" | "emergency";
   bodyId?: string;
+  bodyRoom?: string; // room the body was found in ("" or missing = hallway)
   discussionTime: number;
   votingTime: number;
   alivePlayers: string[];

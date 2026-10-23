@@ -43,9 +43,9 @@ type Meeting struct {
 	Reason       string
 	BodyID       string
 	StartTime    time.Time
-	Phase        string                // "discussion" or "voting"
-	Votes        map[string]string     // voterID -> targetID ("" = skip)
-	ChatCounts   map[string]int        // voterID -> # messages sent
+	Phase        string            // "discussion" or "voting"
+	Votes        map[string]string // voterID -> targetID ("" = skip)
+	ChatCounts   map[string]int    // voterID -> # messages sent
 	AlivePlayers []string
 	mu           sync.RWMutex
 }
@@ -151,6 +151,12 @@ func (m *Meeting) GetVotes() map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func (m *Meeting) GetPhase() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.Phase
 }
 
 func (m *Meeting) SetPhase(phase string) {
