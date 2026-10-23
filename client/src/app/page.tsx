@@ -200,9 +200,18 @@ export default function Home() {
   const { send, connected } = useWebSocket(onMessage);
 
   return (
-    <main className="flex-1 flex flex-col items-center justify-center bg-gray-950 px-4">
-      {screen === "home" && <HomeScreen send={send} connected={connected} />}
-      {screen === "lobby" && <Lobby send={send} connected={connected} />}
+    <main className="flex-1 min-h-0 flex flex-col items-center justify-center bg-gray-950 px-4">
+      {screen !== "game" && (
+        // The body never scrolls (the game canvas must not), so menu
+        // screens get their own scroll area. min-h-full keeps them centered
+        // when they fit and lets them grow (and scroll) when they don't.
+        <div className="w-full flex-1 min-h-0 overflow-y-auto overscroll-contain">
+          <div className="min-h-full flex flex-col items-center justify-center py-4">
+            {screen === "home" && <HomeScreen send={send} connected={connected} />}
+            {screen === "lobby" && <Lobby send={send} connected={connected} />}
+          </div>
+        </div>
+      )}
       {screen === "game" && (
         <GameScreen send={send} positionsRef={positionsRef} />
       )}
