@@ -328,13 +328,13 @@ func (c *Client) handleStartGame() {
 		room.sendTo(id, MsgTaskProgress, taskProgress[id])
 		// Send initial cooldown to the tagger
 		if role == RoleTagger {
-			room.sendTo(id, MsgCooldown, CooldownPayload{Seconds: 10})
+			room.sendTo(id, MsgCooldown, CooldownPayload{Kind: CooldownTag, Seconds: TagCooldownAfterMeeting.Seconds()})
 		}
 	}
 
 	// Set initial tag cooldown so tagger can't immediately tag at start
 	room.Game.mu.Lock()
-	room.Game.TagCooldown = time.Now().Add(10 * time.Second)
+	room.Game.TagCooldown = time.Now().Add(TagCooldownAfterMeeting)
 	room.Game.mu.Unlock()
 }
 
@@ -764,7 +764,7 @@ func (c *Client) handleSabotage(payload json.RawMessage) {
 
 	// Send sabotage cooldown to tagger (not for meltdown since it's once per game)
 	if p.Type != SabotageMeltdown {
-		c.sendEnvelope(MsgCooldown, CooldownPayload{Seconds: SabotageCooldown.Seconds()})
+		c.sendEnvelope(MsgCooldown, CooldownPayload{Kind: CooldownSabotage, Seconds: SabotageCooldown.Seconds()})
 	}
 }
 
@@ -833,6 +833,7 @@ func (c *Client) handleTagPlayer(payload json.RawMessage) {
 	tagCD := room.Game.Settings.TagCooldown
 	room.Game.mu.RUnlock()
 	c.sendEnvelope(MsgCooldown, CooldownPayload{
+		Kind:    CooldownTag,
 		Seconds: tagCD,
 	})
 
@@ -1045,8 +1046,20 @@ func runMeetingTimeline(room *Room, meeting *Meeting, discTime, voteTime float64
 	if game != nil {
 		game.mu.Lock()
 		game.Meeting = nil
-		game.TagCooldown = time.Now().Add(10 * time.Second)
+		game.TagCooldown = time.Now().Add(TagCooldownAfterMeeting)
+		var taggers []string
+		for id, role := range game.Roles {
+			if role == RoleTagger && !game.Frozen[id] {
+				taggers = append(taggers, id)
+			}
+		}
 		game.mu.Unlock()
+
+		// Tell the tagger their button is cooling down again, or it
+		// looks ready while the server rejects every press.
+		for _, id := range taggers {
+			room.sendTo(id, MsgCooldown, CooldownPayload{Kind: CooldownTag, Seconds: TagCooldownAfterMeeting.Seconds()})
+		}
 	}
 
 	// Resume gameplay

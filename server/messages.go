@@ -167,6 +167,13 @@ type MeetingPhasePayload struct {
 	Duration float64 `json:"duration"` // seconds remaining in this phase
 }
 
+// Cooldown kinds — the tagger has two independent timers.
+const (
+	CooldownTag      = "tag"
+	CooldownSabotage = "sabotage"
+)
+
 type CooldownPayload struct {
+	Kind    string  `json:"kind"` // CooldownTag or CooldownSabotage
 	Seconds float64 `json:"seconds"`
 }

@@ -175,6 +175,7 @@ export interface MeetingPhasePayload {
 }
 
 export interface CooldownPayload {
+  kind: "tag" | "sabotage";
   seconds: number;
 }
 

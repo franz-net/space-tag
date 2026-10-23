@@ -244,7 +244,12 @@ export const useGameStore = create<GameState>((set) => ({
     set({ tagCooldownEnd: Date.now() + seconds * 1000 }),
 
   startMeeting: (payload) =>
-    set({
+    set((state) => ({
+      // Server allows one emergency per player per game — once ours has
+      // gone through, hide the button for the rest of the game.
+      usedEmergency:
+        state.usedEmergency ||
+        (payload.reason === "emergency" && payload.callerId === state.myId),
       meeting: payload,
       meetingPhase: "discussion",
       meetingPhaseEnd: Date.now() + payload.discussionTime * 1000,
@@ -253,7 +258,7 @@ export const useGameStore = create<GameState>((set) => ({
       votedPlayers: new Set(),
       meetingResult: null,
       activeTask: null, // close any active task
-    }),
+    })),
 
   setMeetingPhase: (phase, duration) =>
     set({

@@ -9,9 +9,12 @@ const (
 	DiscussionDuration = 30 * time.Second
 	VotingDuration     = 20 * time.Second
 	TagCooldown        = 25 * time.Second
-	TagRange           = 70.0
-	ReportRange        = 90.0
-	MaxChatMessages    = 8 // per player per meeting
+	// Grace period at game start and after every meeting before the
+	// tagger can tag again.
+	TagCooldownAfterMeeting = 10 * time.Second
+	TagRange                = 70.0
+	ReportRange             = 90.0
+	MaxChatMessages         = 8 // per player per meeting
 )
 
 // Pre-defined chat messages — kid friendly icons only

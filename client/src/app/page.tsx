@@ -38,6 +38,7 @@ export default function Home() {
     setGameOver,
     freezePlayer,
     setCooldown,
+    setSabotageCooldown,
     startMeeting,
     setMeetingPhase,
     addChatMessage,
@@ -97,7 +98,11 @@ export default function Home() {
         }
         case "cooldown": {
           const c = payload as CooldownPayload;
-          setCooldown(c.seconds);
+          if (c.kind === "sabotage") {
+            setSabotageCooldown(c.seconds);
+          } else {
+            setCooldown(c.seconds);
+          }
           break;
         }
         case "meeting_start": {
@@ -179,6 +184,7 @@ export default function Home() {
       setGameOver,
       freezePlayer,
       setCooldown,
+      setSabotageCooldown,
       startMeeting,
       setMeetingPhase,
       addChatMessage,
