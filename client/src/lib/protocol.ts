@@ -143,8 +143,18 @@ export interface TaskProgressPayload {
 
 export interface GameOverPayload {
   winner: "crew" | "tagger";
-  roles: { id: string; name: string; role: Role }[];
+  roles: { id: string; name: string; role: Role; personality?: Personality }[];
 }
+
+// Bot personalities, revealed on the game-over screen
+export type Personality = "buddy" | "chatty" | "nervous" | "hero" | "slowpoke";
+export const PERSONALITY_LABELS: Record<Personality, string> = {
+  buddy: "🤝 Buddy",
+  chatty: "🗣️ Chatty",
+  nervous: "😰 Nervous",
+  hero: "🦸 Hero",
+  slowpoke: "🐢 Slowpoke",
+};
 
 // Tagger / voting payloads
 export interface PlayerFrozenPayload {

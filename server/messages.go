@@ -114,9 +114,10 @@ type GameOverPayload struct {
 }
 
 type PlayerRoleInfo struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Role Role   `json:"role"`
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	Role        Role        `json:"role"`
+	Personality Personality `json:"personality,omitempty"` // bots only
 }
 
 // Tagger / voting payloads

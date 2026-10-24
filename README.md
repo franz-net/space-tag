@@ -131,6 +131,7 @@ space-tag/
 │   ├── ai_utility.go       # Utility AI: scores every option, picks the best
 │   ├── ai_perception.go    # What bots can see/hear → suspicion scores
 │   ├── ai_meeting.go       # Bot chat + voting
+│   ├── ai_personality.go   # Bot personalities (weights on top of difficulty)
 │   ├── pathfinding.go      # BFS waypoint graph (27 nodes)
 │   ├── messages.go         # Protocol message types
 │   ├── player.go           # Player + role types
@@ -258,6 +259,7 @@ These rules drive every decision:
 - [x] Meeting screen shows where the frozen friend was found
 - [x] Easy / Normal / Hard bots, picked in the lobby (Easy: misses clues, tags in front of witnesses, slow at tasks; Hard: never careless, remembers suspicion longer, faster at tasks). No level lets bots see more than a human could.
 - [x] 2 Taggers (full room of 6): partners know each other, can't tag each other, and share a cooldown after each tag. Bot taggers back up their partner (human or bot) using only what they see and hear: no voting out the partner, counter-accusing their accusers, echoing the partner's accusations, spreading out, and Lights Out to help them strike
+- [x] Bot personalities, one per bot (no repeats until all five are used), revealed on the game-over screen: 🤝 **Buddy** (does tasks near other players, especially you, and vouches "with me"), 🗣️ **Chatty** (talks more, accuses sooner), 😰 **Nervous** (won't stay alone with someone it suspects, skips votes, says "not me!" early), 🦸 **Hero** (rushes to fix sabotage, votes quickly and confidently), 🐢 **Slowpoke** (slow at tasks, wanders, votes late)
 
 ### Phase 6: Polish + Sabotage ✅
 - [x] Sound effects (click, freeze, meeting bell, task complete, sabotage, meltdown alarm)

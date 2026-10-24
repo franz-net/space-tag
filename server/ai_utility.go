@@ -69,7 +69,7 @@ func aiDecide(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.Time) {
 	case gs.Frozen[ai.PlayerID]:
 		opts = aiGhostOptions(gs, ai, pos)
 	case ai.Role == RoleCrewmate:
-		opts = aiCrewmateOptions(gs, ai, pos)
+		opts = aiCrewmateOptions(gs, ai, pos, now)
 	default:
 		opts = aiTaggerOptions(gs, ai, pos, now)
 	}
@@ -111,6 +111,9 @@ func aiApply(gs *GameState, room *Room, ai *AIBrain, o aiOption, pos Vec2, now t
 		}
 		return
 	}
+	if o.Goal == GoalLeaveScene && ai.Role == RoleCrewmate {
+		ai.LastFledAt = now // a Nervous bot walking away from someone
+	}
 	ai.Goal = o.Goal
 	ai.GoalTarget = o.Target
 	ai.StuckTicks = 0
@@ -119,8 +122,10 @@ func aiApply(gs *GameState, room *Room, ai *AIBrain, o aiOption, pos Vec2, now t
 
 // ===== Option builders =====
 
-func aiCrewmateOptions(gs *GameState, ai *AIBrain, pos Vec2) []aiOption {
+func aiCrewmateOptions(gs *GameState, ai *AIBrain, pos Vec2, now time.Time) []aiOption {
 	var opts []aiOption
+	w := ai.weights()
+	visible := aiVisiblePlayers(gs, ai, pos)
 
 	// Report bodies I've seen
 	for bodyID := range ai.KnownBodies {
@@ -148,13 +153,21 @@ func aiCrewmateOptions(gs *GameState, ai *AIBrain, pos Vec2) []aiOption {
 					helpers++
 				}
 			}
-			score := base*proximity(pos, st.Position) - aiHelperPenalty*float64(helpers)
+			score := base*w.FixWeight*proximity(pos, st.Position) - aiHelperPenalty*float64(helpers)
 			opts = append(opts, aiOption{Goal: GoalFixSabotage, Target: st.ID, Pos: st.Position, Score: score})
 		}
 	}
 
-	opts = append(opts, aiTaskOptions(gs, ai, pos, 0.55)...)
-	opts = append(opts, aiWanderOption(ai, pos, 0.10))
+	if o, ok := aiFleeOption(gs, ai, pos, visible, now); ok {
+		opts = append(opts, o)
+	}
+
+	tasks := aiTaskOptions(gs, ai, pos, 0.55*w.TaskWeight)
+	for i := range tasks {
+		tasks[i].Score += aiCompanyBonus(gs, ai, visible, tasks[i].Pos)
+	}
+	opts = append(opts, tasks...)
+	opts = append(opts, aiWanderOption(ai, pos, 0.10*w.WanderWeight))
 	return opts
 }
 
@@ -191,7 +204,7 @@ func aiTaggerOptions(gs *GameState, ai *AIBrain, pos Vec2, now time.Time) []aiOp
 			}
 			score = (0.45 + 0.40*isolated) * proximity(pos, targetPos)
 		} else {
-			score = 0.20 * proximity(pos, targetPos) // loosely shadow people
+			score = 0.20 * ai.weights().ShadowWeight * proximity(pos, targetPos) // loosely shadow people
 		}
 		// My partner is right there with them — leave that one to them and
 		// cover a different part of the ship.
@@ -228,7 +241,7 @@ func aiTaggerOptions(gs *GameState, ai *AIBrain, pos Vec2, now time.Time) []aiOp
 	}
 
 	opts = append(opts, aiTaskOptions(gs, ai, pos, 0.40)...) // fake tasks
-	opts = append(opts, aiWanderOption(ai, pos, 0.15))
+	opts = append(opts, aiWanderOption(ai, pos, 0.15*ai.weights().WanderWeight))
 	return opts
 }
 

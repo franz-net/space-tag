@@ -234,7 +234,12 @@ func aiOnMeetingStart(gs *GameState, ai *AIBrain, now time.Time) {
 	ai.MeetingVoted = false
 	ai.MeetingChats = 0
 	ai.LastChat = ""
-	ai.VoteDelay = time.Duration(2+rand.Intn(8)) * time.Second
+	w := ai.weights()
+	ai.VoteDelay = w.VoteDelayMin + time.Duration(rand.Int63n(int64(w.VoteDelayMax-w.VoteDelayMin)+1))
+	// Always get the vote in before time runs out
+	if limit := time.Duration((gs.Settings.VotingTime - 2) * float64(time.Second)); ai.VoteDelay > limit {
+		ai.VoteDelay = max(limit, 0)
+	}
 	ai.Accusations = make(map[string]int)
 	ai.Accusers = make(map[string]map[string]bool)
 	ai.HeardFrom = make(map[string]bool)
@@ -242,6 +247,7 @@ func aiOnMeetingStart(gs *GameState, ai *AIBrain, now time.Time) {
 	ai.SaidISaw = false
 	ai.SaidNotMe = false
 	ai.SaidDefend = false
+	ai.SaidWithMe = false
 	ai.BodyRoom = ""
 	ai.Goal = GoalIdle
 	ai.GoalTarget = ""
@@ -303,6 +309,17 @@ func aiOnMeetingEnd(gs *GameState, ai *AIBrain, now time.Time) {
 	ai.StuckTicks = 0
 	ai.LastPos = gs.Positions[ai.PlayerID]
 	ai.NextDecision = now
+}
+
+// hadCompany reports whether the bot was near another living player just
+// before the meeting (the same window that gives them an alibi).
+func (ai *AIBrain) hadCompany(meetingStart time.Time) bool {
+	for _, seenAt := range ai.NearbyLog {
+		if meetingStart.Sub(seenAt) <= aiAlibiWindow {
+			return true
+		}
+	}
+	return false
 }
 
 // topSuspect returns the most suspicious player among candidates.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useGameStore } from "@/stores/gameStore";
-import type { MsgType } from "@/lib/protocol";
+import { PERSONALITY_LABELS, type MsgType } from "@/lib/protocol";
 
 interface Props {
   send: (type: MsgType, payload?: unknown) => void;
@@ -49,7 +49,14 @@ export default function GameOverScreen({ send }: Props) {
                 key={r.id}
                 className="flex items-center justify-between px-4 py-2 rounded-lg bg-gray-800"
               >
-                <span className="text-white font-medium">{r.name}</span>
+                <span className="flex flex-col">
+                  <span className="text-white font-medium">{r.name}</span>
+                  {r.personality && PERSONALITY_LABELS[r.personality] && (
+                    <span className="text-xs text-gray-400">
+                      {PERSONALITY_LABELS[r.personality]}
+                    </span>
+                  )}
+                </span>
                 <span
                   className={`font-bold text-sm ${
                     r.role === "tagger" ? "text-red-400" : "text-blue-400"

@@ -75,6 +75,7 @@ type AIBrain struct {
 	PlayerID     string
 	Role         Role
 	Difficulty   AIDifficulty
+	Personality  Personality
 	Goal         AIGoal
 	GoalTarget   string // station ID, player ID, body ID, or waypoint index
 	GoalPos      Vec2   // where the goal was when we planned the path
@@ -109,6 +110,8 @@ type AIBrain struct {
 	Careless       bool // this tag, ignore witnesses (rolled after each tag)
 	LastSabotageAt time.Time
 
+	LastFledAt time.Time // Nervous: last time it walked away from someone
+
 	// Meeting state (reset each meeting)
 	InMeeting    bool
 	MeetingVoted bool
@@ -123,6 +126,7 @@ type AIBrain struct {
 	SaidISaw     bool
 	SaidNotMe    bool
 	SaidDefend   bool // already stuck up for a partner this meeting
+	SaidWithMe   bool
 }
 
 const (
@@ -300,7 +304,7 @@ func aiOnArrive(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.Time)
 	case GoalGoToTask:
 		// "Perform" the task — stand still for a few seconds
 		taskTime := AITaskTimeMin + time.Duration(rand.Int63n(int64(AITaskTimeMax-AITaskTimeMin)))
-		ai.GoalDeadline = now.Add(time.Duration(float64(taskTime) * aiProfiles[ai.Difficulty].TaskTimeScale))
+		ai.GoalDeadline = now.Add(time.Duration(float64(taskTime) * aiProfiles[ai.Difficulty].TaskTimeScale * ai.weights().TaskTimeScale))
 		if ai.Role == RoleCrewmate {
 			ai.Goal = GoalDoingTask
 		} else {

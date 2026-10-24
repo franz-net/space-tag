@@ -74,6 +74,7 @@ func NewGameState(gm *GameMap, playerIDs []string, roles map[string]Role, aiIDs 
 	for _, id := range aiIDs {
 		brains[id] = NewAIBrain(id, roles[id], ParseDifficulty(settings.Difficulty))
 	}
+	rollPersonalities(brains, playerIDs)
 	// Taggers know who their teammates are (but can't talk to them)
 	for id, ai := range brains {
 		if ai.Role == RoleTagger {

@@ -6,17 +6,16 @@ import (
 	"time"
 )
 
-const aiMaxChats = 3 // messages per bot per meeting
-
 // aiMeetingTick handles AI behavior during a meeting (gs.mu is held)
 func aiMeetingTick(gs *GameState, room *Room, ai *AIBrain, now time.Time) {
 	meeting := gs.Meeting
 	phase := meeting.GetPhase()
 
 	// Send chat messages during discussion, staggered and a bit random
-	if phase == "discussion" && ai.MeetingChats < aiMaxChats {
+	w := ai.weights()
+	if phase == "discussion" && ai.MeetingChats < w.MaxChats {
 		elapsed := now.Sub(meeting.StartTime)
-		if elapsed > 3*time.Second && rand.Float64() < 0.03 { // ~3% chance per tick
+		if elapsed > 3*time.Second && rand.Float64() < w.ChatChance {
 			ai.MeetingChats++
 			msgID := pickAIChatMessage(gs, ai)
 			if msgID != "" && msgID != ai.LastChat && meeting.CanSendChat(ai.PlayerID) {
@@ -69,22 +68,27 @@ func susMessage(gs *GameState, playerID string) string {
 // pickAIChatMessage returns a quick message based only on what the bot knows
 func pickAIChatMessage(gs *GameState, ai *AIBrain) string {
 	alive := gs.Meeting.AlivePlayers
+	w := ai.weights()
+	first := ai.MeetingChats == 1
 
 	if ai.Role == RoleCrewmate {
 		suspect, level := ai.topSuspect(alive)
 		reporter := gs.Meeting.CallerID == ai.PlayerID && gs.Meeting.Reason == "body"
 		switch {
-		case reporter && ai.MeetingChats == 1 && ai.BodyRoom != "":
+		case reporter && first && ai.BodyRoom != "":
 			return "loc_" + ai.BodyRoom // "found them in Medbay"
-		case ai.AccusedMe > 0 && !ai.SaidNotMe:
+		case (ai.AccusedMe > 0 || (w.NotMeEarly && first)) && !ai.SaidNotMe:
 			ai.SaidNotMe = true
 			return "not_me"
 		case suspect != "" && level >= aiSusVoteSure && !ai.SaidISaw:
 			ai.SaidISaw = true
 			return "i_saw"
-		case suspect != "" && level >= aiSusVoteSure:
+		case suspect != "" && level >= w.AccuseAt:
 			return susMessage(gs, suspect)
-		case ai.MeetingChats == 1 && ai.LastRoom != "":
+		case w.VouchWithMe && !ai.SaidWithMe && ai.hadCompany(gs.Meeting.StartTime):
+			ai.SaidWithMe = true
+			return "with_me"
+		case first && ai.LastRoom != "":
 			return "loc_" + ai.LastRoom
 		case level < aiSusVoteMaybe:
 			return []string{"idk", "where", "doing_task"}[rand.Intn(3)]
@@ -134,11 +138,12 @@ func pickAIVoteTarget(gs *GameState, ai *AIBrain) string {
 	}
 
 	if ai.Role == RoleCrewmate {
+		w := ai.weights()
 		suspect, level := ai.topSuspect(candidates)
 		switch {
-		case level >= aiSusVoteSure:
+		case level >= w.VoteSure:
 			return suspect
-		case level >= aiSusVoteMaybe && rand.Float64() < 0.35:
+		case level >= w.VoteMaybe && rand.Float64() < w.MaybeChance:
 			return suspect
 		default:
 			return "" // no real evidence — skip rather than guess

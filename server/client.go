@@ -612,9 +612,16 @@ func endGame(room *Room, winner string) {
 	room.mu.Unlock()
 	dbg("endGame: phase set to ended")
 
-	if room.Game != nil {
-		room.Game.Stop()
+	// Bot personalities for the reveal (read before taking room.mu)
+	personalities := map[string]Personality{}
+	if gs := room.Game; gs != nil {
+		gs.Stop()
 		dbg("endGame: game loop stopped")
+		gs.mu.RLock()
+		for id, ai := range gs.AIBrains {
+			personalities[id] = ai.Personality
+		}
+		gs.mu.RUnlock()
 	}
 
 	// Build roles list
@@ -623,9 +630,10 @@ func endGame(room *Room, winner string) {
 	for _, id := range room.Order {
 		p := room.Players[id]
 		roles = append(roles, PlayerRoleInfo{
-			ID:   id,
-			Name: p.Name,
-			Role: p.Role,
+			ID:          id,
+			Name:        p.Name,
+			Role:        p.Role,
+			Personality: personalities[id],
 		})
 	}
 	room.mu.RUnlock()
