@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="69" height="41" tilewidth="64" tileheight="64" infinite="0" nextlayerid="4" nextobjectid="53">
+<map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="69" height="41" tilewidth="64" tileheight="64" infinite="0" nextlayerid="5" nextobjectid="316">
  <tileset firstgid="1" source="../tilesets/cafeteria/cafeteria.tsx" />
  <tileset firstgid="17" source="../tilesets/medbay/medbay.tsx" />
  <tileset firstgid="33" source="../tilesets/navigation/navigation.tsx" />
@@ -14,6 +14,7 @@
  <tileset firstgid="241" source="../tilesets/navigation/navigation-tall.tsx" />
  <tileset firstgid="273" source="../tilesets/reactor/reactor-tall.tsx" />
  <tileset firstgid="305" source="../tilesets/storage/storage-tall.tsx" />
+ <tileset firstgid="337" source="../objects/props.tsx" />
  <layer id="1" name="rooms" width="69" height="41" visible="0">
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -105,57 +106,84 @@
 </data>
  </layer>
  <objectgroup id="3" name="walls" visible="0">
-  <object id="1" x="64" y="64" width="1088" height="224" />
-  <object id="2" x="1664" y="64" width="1088" height="224" />
-  <object id="3" x="3264" y="64" width="1088" height="224" />
-  <object id="4" x="1152" y="256" width="512" height="224" />
-  <object id="5" x="2752" y="256" width="512" height="224" />
-  <object id="6" x="64" y="288" width="160" height="672" />
-  <object id="7" x="992" y="288" width="160" height="192" />
-  <object id="8" x="1664" y="288" width="160" height="192" />
-  <object id="9" x="2592" y="288" width="160" height="192" />
-  <object id="10" x="3264" y="288" width="160" height="192" />
-  <object id="11" x="4192" y="288" width="160" height="672" />
-  <object id="12" x="992" y="608" width="832" height="160" />
-  <object id="13" x="2592" y="608" width="832" height="160" />
-  <object id="14" x="992" y="768" width="160" height="192" />
-  <object id="15" x="1664" y="768" width="160" height="192" />
-  <object id="16" x="2592" y="768" width="160" height="192" />
-  <object id="17" x="3264" y="768" width="160" height="192" />
-  <object id="18" x="224" y="800" width="192" height="160" />
-  <object id="19" x="608" y="800" width="384" height="160" />
-  <object id="20" x="1824" y="800" width="256" height="160" />
-  <object id="21" x="2272" y="800" width="320" height="160" />
-  <object id="22" x="3424" y="800" width="192" height="160" />
-  <object id="23" x="3808" y="800" width="384" height="160" />
-  <object id="24" x="256" y="960" width="160" height="928" />
-  <object id="25" x="608" y="960" width="160" height="928" />
-  <object id="26" x="1920" y="960" width="160" height="928" />
-  <object id="27" x="2272" y="960" width="160" height="928" />
-  <object id="28" x="3456" y="960" width="160" height="928" />
-  <object id="29" x="3808" y="960" width="160" height="928" />
-  <object id="30" x="64" y="1664" width="192" height="224" />
-  <object id="31" x="768" y="1664" width="384" height="224" />
-  <object id="32" x="1664" y="1664" width="256" height="224" />
-  <object id="33" x="2432" y="1664" width="320" height="224" />
-  <object id="34" x="3264" y="1664" width="192" height="224" />
-  <object id="35" x="3968" y="1664" width="384" height="224" />
-  <object id="36" x="1152" y="1856" width="512" height="224" />
-  <object id="37" x="2752" y="1856" width="512" height="224" />
-  <object id="38" x="64" y="1888" width="160" height="672" />
-  <object id="39" x="992" y="1888" width="160" height="192" />
-  <object id="40" x="1664" y="1888" width="160" height="192" />
-  <object id="41" x="2592" y="1888" width="160" height="192" />
-  <object id="42" x="3264" y="1888" width="160" height="192" />
-  <object id="43" x="4192" y="1888" width="160" height="672" />
-  <object id="44" x="992" y="2208" width="832" height="160" />
-  <object id="45" x="2592" y="2208" width="832" height="160" />
-  <object id="46" x="992" y="2368" width="160" height="192" />
-  <object id="47" x="1664" y="2368" width="160" height="192" />
-  <object id="48" x="2592" y="2368" width="160" height="192" />
-  <object id="49" x="3264" y="2368" width="160" height="192" />
-  <object id="50" x="224" y="2400" width="768" height="160" />
-  <object id="51" x="1824" y="2400" width="768" height="160" />
-  <object id="52" x="3424" y="2400" width="768" height="160" />
+  <object id="254" x="64" y="64" width="1088" height="224" />
+  <object id="255" x="1664" y="64" width="1088" height="224" />
+  <object id="256" x="3264" y="64" width="1088" height="224" />
+  <object id="257" x="1152" y="256" width="512" height="224" />
+  <object id="258" x="2752" y="256" width="512" height="224" />
+  <object id="259" x="64" y="288" width="160" height="672" />
+  <object id="260" x="992" y="288" width="160" height="192" />
+  <object id="261" x="1664" y="288" width="160" height="192" />
+  <object id="262" x="2592" y="288" width="160" height="192" />
+  <object id="263" x="3264" y="288" width="160" height="192" />
+  <object id="264" x="4192" y="288" width="160" height="672" />
+  <object id="265" x="992" y="608" width="832" height="160" />
+  <object id="266" x="2592" y="608" width="832" height="160" />
+  <object id="267" x="992" y="768" width="160" height="192" />
+  <object id="268" x="1664" y="768" width="160" height="192" />
+  <object id="269" x="2592" y="768" width="160" height="192" />
+  <object id="270" x="3264" y="768" width="160" height="192" />
+  <object id="271" x="224" y="800" width="192" height="160" />
+  <object id="272" x="608" y="800" width="384" height="160" />
+  <object id="273" x="1824" y="800" width="256" height="160" />
+  <object id="274" x="2272" y="800" width="320" height="160" />
+  <object id="275" x="3424" y="800" width="192" height="160" />
+  <object id="276" x="3808" y="800" width="384" height="160" />
+  <object id="277" x="256" y="960" width="160" height="928" />
+  <object id="278" x="608" y="960" width="160" height="928" />
+  <object id="279" x="1920" y="960" width="160" height="928" />
+  <object id="280" x="2272" y="960" width="160" height="928" />
+  <object id="281" x="3456" y="960" width="160" height="928" />
+  <object id="282" x="3808" y="960" width="160" height="928" />
+  <object id="283" x="64" y="1664" width="192" height="224" />
+  <object id="284" x="768" y="1664" width="384" height="224" />
+  <object id="285" x="1664" y="1664" width="256" height="224" />
+  <object id="286" x="2432" y="1664" width="320" height="224" />
+  <object id="287" x="3264" y="1664" width="192" height="224" />
+  <object id="288" x="3968" y="1664" width="384" height="224" />
+  <object id="289" x="1152" y="1856" width="512" height="224" />
+  <object id="290" x="2752" y="1856" width="512" height="224" />
+  <object id="291" x="64" y="1888" width="160" height="672" />
+  <object id="292" x="992" y="1888" width="160" height="192" />
+  <object id="293" x="1664" y="1888" width="160" height="192" />
+  <object id="294" x="2592" y="1888" width="160" height="192" />
+  <object id="295" x="3264" y="1888" width="160" height="192" />
+  <object id="296" x="4192" y="1888" width="160" height="672" />
+  <object id="297" x="992" y="2208" width="832" height="160" />
+  <object id="298" x="2592" y="2208" width="832" height="160" />
+  <object id="299" x="992" y="2368" width="160" height="192" />
+  <object id="300" x="1664" y="2368" width="160" height="192" />
+  <object id="301" x="2592" y="2368" width="160" height="192" />
+  <object id="302" x="3264" y="2368" width="160" height="192" />
+  <object id="303" x="224" y="2400" width="768" height="160" />
+  <object id="304" x="1824" y="2400" width="768" height="160" />
+  <object id="305" x="3424" y="2400" width="768" height="160" />
+  <object id="306" name="food-counter" type="prop" x="1931" y="272" width="118" height="36" />
+  <object id="307" name="vending-machine" type="prop" x="2110" y="272" width="80" height="12" />
+  <object id="308" name="water-cooler" type="prop" x="2235" y="272" width="20" height="10" />
+  <object id="309" name="task-wires" type="prop" x="2299" y="272" width="102" height="20" />
+  <object id="310" name="task-targets" type="prop" x="2440" y="272" width="100" height="20" />
+  <object id="311" name="cafeteria-table" type="prop" x="1974" y="604" width="92" height="56" />
+  <object id="312" name="cafeteria-table" type="prop" x="2354" y="604" width="92" height="56" />
+  <object id="313" name="emergency-button" type="prop" x="2159.50" y="536" width="101" height="44" />
+  <object id="314" name="plant" type="prop" x="1863" y="774" width="34" height="16" />
+  <object id="315" name="trash-bin" type="prop" x="2537.50" y="776" width="35" height="14" />
+ </objectgroup>
+ <objectgroup id="4" name="props">
+  <object id="53" gid="345" x="1990" y="308" width="118" height="66" />
+  <object id="54" gid="360" x="2150" y="284" width="80" height="104" />
+  <object id="55" gid="361" x="2245" y="282" width="20" height="58" />
+  <object id="56" gid="358" x="2350" y="292" width="102" height="120" />
+  <object id="57" gid="357" x="2490" y="292" width="100" height="122" />
+  <object id="58" gid="338" x="2020" y="660" width="92" height="81" />
+  <object id="59" gid="338" x="2400" y="660" width="92" height="81" />
+  <object id="60" gid="340" x="2210" y="580" width="101" height="103" />
+  <object id="61" gid="351" x="1880" y="790" width="34" height="49" />
+  <object id="62" gid="359" x="2555" y="790" width="35" height="42" />
+  <object id="63" gid="367" x="2700" y="450" width="48" height="48" />
+  <object id="64" gid="368" x="2860" y="447" width="56" height="40" />
+  <object id="65" gid="367" x="3020" y="450" width="48" height="48" />
+  <object id="66" gid="368" x="3180" y="447" width="56" height="40" />
+  <object id="67" gid="367" x="3340" y="450" width="48" height="48" />
  </objectgroup>
 </map>

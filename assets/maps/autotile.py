@@ -12,9 +12,16 @@ layers in the same map, leaving all your other layers alone:
            face. Tall-wall tiles depend on their neighbours, which Tiled's
            terrain brush can't do, so they're picked here by PixelLab's
            pattern_4x4 rules.
-  "walls"  rectangles where players can't walk (walls and wall faces).
+  "walls"  rectangles where players can't walk: walls, wall faces and the
+           footprints of the furniture on your "props" object layer.
 
-Run it after every edit to "rooms" (it's quick), then reload the map in Tiled.
+It also lines up furniture on the "props" layer (see objects.json):
+objects that stand against a wall get their back snapped onto the nearest
+wall, and windows/screens get hung on the top wall's face. Place them
+roughly; the script makes them exact.
+
+Run it after every edit to "rooms" or "props" (it's quick), then reload the
+map in Tiled.
 """
 import json
 import os
@@ -24,8 +31,17 @@ import xml.etree.ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TILESETS = os.path.normpath(os.path.join(HERE, "..", "tilesets"))
+OBJECTS = os.path.normpath(os.path.join(HERE, "..", "objects"))
 GID_MASK = 0x0FFFFFFF  # strip Tiled's flip flags
 LOWER, UPPER, FACE = 0, 1, 2
+
+# Where walls meet the floor inside a 64px tall-wall tile (measured from the
+# cafeteria-tall sheet; every room shares its walls).
+TOP_WALL_FLOOR = 16   # below the top edge of the cell under a wall face
+FACE_TOP = 20         # wall face starts this far into the cell above
+LEFT_WALL_FLOOR = 37  # into the cell whose left corners are wall
+RIGHT_WALL_FLOOR = 27  # into the cell whose right corners are wall
+SNAP = 48             # how far (px) a prop may be from a wall to get snapped
 
 
 def load_tilesets(tmx_dir, root):
@@ -190,6 +206,8 @@ def main(tmx_path):
     tiles_layer = write_layer(root, "tiles", out, W, H, rooms_layer)
     rooms_layer.set("visible", "0")  # you edit "rooms", the game shows "tiles"
 
+    footprints, snapped = place_props(root, tmx_dir, tilesets, at, W, H, T)
+
     # Collision on a half-tile grid: a quarter-cell is solid if its corner is wall or wall face
     solid = [[False] * (2 * W) for _ in range(2 * H)]
     for y in range(H):
@@ -213,10 +231,96 @@ def main(tmx_path):
         ET.SubElement(group, "object", {"id": next_id(root, "nextobjectid"),
                                         "x": str(x * half), "y": str(y * half),
                                         "width": str(w * half), "height": str(h * half)})
+    for name, (x, y, w, h) in footprints:
+        ET.SubElement(group, "object", {"id": next_id(root, "nextobjectid"), "name": name, "type": "prop",
+                                        "x": fmt(x), "y": fmt(y), "width": fmt(w), "height": fmt(h)})
 
     ET.indent(tree, space=" ")
     tree.write(tmx_path, encoding="UTF-8", xml_declaration=True)
-    print(f"{os.path.basename(tmx_path)}: {sum(1 for r in out for g in r if g)} tall-wall tiles, {len(rects)} wall rectangles")
+    print(f"{os.path.basename(tmx_path)}: {sum(1 for r in out for g in r if g)} tall-wall tiles, "
+          f"{len(rects)} wall rectangles, {len(footprints)} prop footprints, {snapped} props lined up")
+
+
+def fmt(v):
+    return str(int(v)) if float(v).is_integer() else f"{v:.2f}"
+
+
+def place_props(root, tmx_dir, tilesets, at, W, H, T):
+    """Snap the "props" layer's furniture to walls and return their footprints.
+
+    Tile objects use the props tileset's bottom alignment: (x, y) is the
+    bottom-centre of the picture, which is also the front of its footprint.
+    """
+    group = next((g for g in root.findall("objectgroup") if g.get("name") == "props"), None)
+    if group is None:
+        return [], 0
+    info = json.load(open(os.path.join(OBJECTS, "objects.json")))
+    names = {}  # gid -> object name
+    for first, name, path in tilesets:
+        text = open(path).read() if os.path.exists(path) else ""
+        for tid, src in re.findall(r'<tile id="(\d+)">\s*<image source="([^"]+)"', text):
+            names[first + int(tid)] = os.path.splitext(os.path.basename(src))[0]
+
+    footprints, snapped = [], 0
+    for obj in group.findall("object"):
+        gid = int(obj.get("gid", "0")) & GID_MASK
+        name = names.get(gid)
+        meta = info.get(name or "")
+        if not meta:
+            continue
+        x, y = float(obj.get("x")), float(obj.get("y"))
+        w, h = float(obj.get("width")), float(obj.get("height"))
+        depth, kind = meta["depth"], meta["kind"]
+        old = (x, y)
+
+        if kind == "mounted":
+            # Hang it on the face of the nearest top wall above: bottom just above the stripe
+            v = nearest_face_row(at, x, y - h / 2, W, H, T)
+            if v is not None:
+                face_top, face_bottom = (v - 1) * T + FACE_TOP, v * T + TOP_WALL_FLOOR - 14
+                y = face_bottom if h > face_bottom - face_top else (face_top + face_bottom + h) / 2
+        elif kind == "wall":
+            back = y - depth
+            v = top_wall_row(at, x, back, W, H, T)
+            if v is not None and abs(back - (v * T + TOP_WALL_FLOOR)) <= SNAP:
+                y = v * T + TOP_WALL_FLOOR + depth
+            # Side walls: line up its left/right edge
+            row = int((y - depth / 2) // T)
+            for u in range(W):
+                left_line = u * T + LEFT_WALL_FLOOR
+                if at(row, u) != LOWER and at(row, u + 1) == LOWER and abs((x - w / 2) - left_line) <= SNAP / 2:
+                    x = left_line + w / 2
+                right_line = u * T + RIGHT_WALL_FLOOR
+                if at(row, u) == LOWER and at(row, u + 1) != LOWER and abs((x + w / 2) - right_line) <= SNAP / 2:
+                    x = right_line - w / 2
+
+        if (x, y) != old:
+            obj.set("x", fmt(x))
+            obj.set("y", fmt(y))
+            snapped += 1
+        if kind in ("wall", "free") and depth:
+            footprints.append((name, (x - w / 2, y - depth, w, depth)))
+    return footprints, snapped
+
+
+def nearest_face_row(at, x, y, W, H, T):
+    """Vertex row of the wall face nearest to art pixel (x, y), above or below."""
+    vx = [int(x // T), int(x // T) + 1]
+    rows = [v for v in range(H + 1) if any(0 <= c <= W and at(v, c) == FACE for c in vx)]
+    rows = [v for v in rows if abs(v * T - y) <= 2 * SNAP]
+    return min(rows, key=lambda v: abs(v * T - y)) if rows else None
+
+
+def top_wall_row(at, x, y, W, H, T):
+    """Vertex row of the wall face closest above art pixel (x, y), or None."""
+    vx = [int(x // T), int(x // T) + 1]
+    best = None
+    for v in range(H + 1):
+        if any(0 <= c <= W and at(v, c) == FACE for c in vx):
+            line = v * T + TOP_WALL_FLOOR
+            if line <= y + SNAP and (best is None or line > best * T + TOP_WALL_FLOOR):
+                best = v
+    return best
 
 
 def tile_count(tsx_path):
