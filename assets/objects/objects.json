@@ -155,5 +155,77 @@
  "vending-machine-alt": {
   "kind": "wall",
   "depth": 10
+ },
+ "bridge-desk-buttons": {
+  "kind": "wall",
+  "depth": 18
+ },
+ "computer-bank": {
+  "kind": "wall",
+  "depth": 14
+ },
+ "starmap-console": {
+  "kind": "wall",
+  "depth": 20
+ },
+ "slider-desk": {
+  "kind": "wall",
+  "depth": 20
+ },
+ "hologram-table": {
+  "kind": "free",
+  "depth": 30
+ },
+ "captain-chair": {
+  "kind": "free",
+  "depth": 16
+ },
+ "pilot-seat": {
+  "kind": "free",
+  "depth": 12
+ },
+ "gauge-console": {
+  "kind": "wall",
+  "depth": 16
+ },
+ "sensor-console": {
+  "kind": "wall",
+  "depth": 18
+ },
+ "shield-console": {
+  "kind": "wall",
+  "depth": 18
+ },
+ "server-rack": {
+  "kind": "wall",
+  "depth": 12
+ },
+ "monitor-desk": {
+  "kind": "wall",
+  "depth": 24
+ },
+ "starchart-table": {
+  "kind": "free",
+  "depth": 30
+ },
+ "scanner-station": {
+  "kind": "free",
+  "depth": 20
+ },
+ "status-console": {
+  "kind": "wall",
+  "depth": 14
+ },
+ "printer-console": {
+  "kind": "wall",
+  "depth": 18
+ },
+ "window-bridge": {
+  "kind": "mounted",
+  "depth": 0
+ },
+ "window-bridge-struts": {
+  "kind": "mounted",
+  "depth": 0
  }
 }

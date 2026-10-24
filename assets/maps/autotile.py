@@ -307,7 +307,7 @@ def nearest_face_row(at, x, y, W, H, T):
     """Vertex row of the wall face nearest to art pixel (x, y), above or below."""
     vx = [int(x // T), int(x // T) + 1]
     rows = [v for v in range(H + 1) if any(0 <= c <= W and at(v, c) == FACE for c in vx)]
-    rows = [v for v in rows if abs(v * T - y) <= 2 * SNAP]
+    rows = [v for v in rows if abs(v * T - y) <= 3 * T]
     return min(rows, key=lambda v: abs(v * T - y)) if rows else None
 
 

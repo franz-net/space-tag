@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.11.0" name="props" tilewidth="128" tileheight="128" tilecount="39" columns="0" nextid="39" objectalignment="bottom">
+<tileset version="1.10" tiledversion="1.11.0" name="props" tilewidth="200" tileheight="128" tilecount="57" columns="0" nextid="57" objectalignment="bottom">
  <grid orientation="orthogonal" width="1" height="1"/>
  <tile id="0">
   <image source="barrel.png" width="28" height="48"/>
@@ -117,5 +117,59 @@
  </tile>
  <tile id="38">
   <image source="vending-machine-alt.png" width="52" height="78"/>
+ </tile>
+ <tile id="39">
+  <image source="bridge-desk-buttons.png" width="79" height="77"/>
+ </tile>
+ <tile id="40">
+  <image source="captain-chair.png" width="54" height="77"/>
+ </tile>
+ <tile id="41">
+  <image source="computer-bank.png" width="68" height="79"/>
+ </tile>
+ <tile id="42">
+  <image source="gauge-console.png" width="69" height="78"/>
+ </tile>
+ <tile id="43">
+  <image source="hologram-table.png" width="58" height="75"/>
+ </tile>
+ <tile id="44">
+  <image source="monitor-desk.png" width="70" height="63"/>
+ </tile>
+ <tile id="45">
+  <image source="pilot-seat.png" width="48" height="58"/>
+ </tile>
+ <tile id="46">
+  <image source="printer-console.png" width="62" height="71"/>
+ </tile>
+ <tile id="47">
+  <image source="scanner-station.png" width="52" height="79"/>
+ </tile>
+ <tile id="48">
+  <image source="sensor-console.png" width="68" height="72"/>
+ </tile>
+ <tile id="49">
+  <image source="server-rack.png" width="49" height="79"/>
+ </tile>
+ <tile id="50">
+  <image source="shield-console.png" width="62" height="74"/>
+ </tile>
+ <tile id="51">
+  <image source="slider-desk.png" width="77" height="76"/>
+ </tile>
+ <tile id="52">
+  <image source="starchart-table.png" width="74" height="58"/>
+ </tile>
+ <tile id="53">
+  <image source="starmap-console.png" width="75" height="76"/>
+ </tile>
+ <tile id="54">
+  <image source="status-console.png" width="65" height="73"/>
+ </tile>
+ <tile id="55">
+  <image source="window-bridge-struts.png" width="200" height="60"/>
+ </tile>
+ <tile id="56">
+  <image source="window-bridge.png" width="200" height="60"/>
  </tile>
 </tileset>
