@@ -1,22 +1,28 @@
 #!/usr/bin/env python3
-"""Give every room the same (clean) wall by recomposing its tileset from a template.
+"""Give every room the same (clean) walls by recomposing its tilesets from
+the cafeteria's.
 
-usage: python3 retile.py [template]   (default template: cafeteria)
+usage: python3 retile.py
 
 PixelLab draws the shared hull wall slightly differently in each tileset,
-with its own small glitches. This keeps the template's walls, trims and
-stripes, and swaps in each room's own floor (from its plain floor tile,
-read from _originals/<room>.png + .tsx, the untouched PixelLab downloads), darkening it where the template had a shadow.
-Results land in <room>/<room>.png + .tsx (same tile layout as the template).
+with its own small glitches. This keeps the cafeteria's walls, trims and
+stripes and swaps in each room's own floor (from its plain floor tile in
+_originals/), darkening it where the template had a shadow. For each room
+it writes, into <room>/:
+
+  <room>.png / .tsx            16-tile set: paint rooms with it in Tiled
+  <room>-tall.png / .tsx / .json  tall-wall set the game draws (autotile.py)
 """
+import json
 import os
 import re
-import sys
+import shutil
 from PIL import Image
 
 ROOMS = ["cafeteria", "medbay", "navigation", "engine", "storage", "reactor", "hallway"]
+TEMPLATE = "cafeteria"
 HERE = os.path.dirname(os.path.abspath(__file__))
-T = 64
+ORIG = os.path.join(HERE, "_originals")
 
 # AAP-64, the palette every tileset was generated with
 PALETTE = [tuple(int(h[i:i + 2], 16) for i in (1, 3, 5)) for h in (
@@ -36,22 +42,25 @@ def lum(c):
     return 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
 
 
-def floor_tile_id(tsx_path):
-    return int(re.search(r'<wangcolor name="Floor[^"]*" color="[^"]*" tile="(\d+)"', open(tsx_path).read()).group(1))
+def floor_tile(name):
+    """The all-floor tile of an _originals/ sheet, from its metadata."""
+    meta = json.load(open(os.path.join(ORIG, f"{name}.json")))
+    size = meta["tile_size"]
+    for t in meta["tiles"]:
+        if set(t["corners"].values()) == {"lower"}:
+            sheet = Image.open(os.path.join(ORIG, f"{name}.png")).convert("RGB")
+            return sheet.crop((t["x"], t["y"], t["x"] + size, t["y"] + size)), size
+    raise ValueError(f"{name}: no all-floor tile")
 
 
-def crop(im, tid):
-    cols = im.width // T
-    return im.crop(((tid % cols) * T, (tid // cols) * T, (tid % cols + 1) * T, (tid // cols + 1) * T))
-
-
-def main(template):
-    src = Image.open(os.path.join(HERE, "_originals", f"{template}.png")).convert("RGB")
-    tsx = open(os.path.join(HERE, "_originals", f"{template}.tsx")).read()
-    tfloor = crop(src, floor_tile_id(os.path.join(HERE, "_originals", f"{template}.tsx")))
+def recompose(template, rooms_floor):
+    """Yield (room, image): the template sheet with each room's floor."""
+    src = Image.open(os.path.join(ORIG, f"{template}.png")).convert("RGB")
+    tfloor, T = floor_tile(template)
     floor_colors = set(tfloor.getdata())
-    base = max(floor_colors, key=lambda c: list(tfloor.getdata()).count(c))  # main floor color
-    bright = {c for c in floor_colors if lum(c) >= lum(base)}  # floor, never shadow
+    pixels = list(tfloor.getdata())
+    base = max(floor_colors, key=pixels.count)  # main floor colour
+    bright = {c for c in floor_colors if lum(c) >= lum(base)}
 
     # Per template pixel: None = wall (keep), else a brightness factor for the room floor
     plan = []
@@ -59,7 +68,7 @@ def main(template):
         row = []
         for x in range(src.width):
             p = src.getpixel((x, y))
-            # Light, near-gray pixels are floor highlights (the yellow stripe is bright but saturated)
+            # Light, near-grey pixels are floor highlights (the yellow stripe is bright but saturated)
             highlight = lum(p) >= lum(base) and max(p) - min(p) < 32
             if p == tfloor.getpixel((x % T, y % T)) or p in bright or highlight:
                 row.append(1.0)
@@ -69,9 +78,7 @@ def main(template):
                 row.append(None)
         plan.append(row)
 
-    for room in ROOMS:
-        orig = Image.open(os.path.join(HERE, "_originals", f"{room}.png")).convert("RGB")
-        rfloor = crop(orig, floor_tile_id(os.path.join(HERE, "_originals", f"{room}.tsx")))
+    for room, rfloor in rooms_floor.items():
         out = src.copy()
         cache = {}
         for y in range(src.height):
@@ -86,13 +93,33 @@ def main(template):
                         cache[key] = nearest(tuple(min(255, int(v * k)) for v in f))
                     f = cache[key]
                 out.putpixel((x, y), f)
-        out.save(os.path.join(HERE, room, f"{room}.png"))
-        with open(os.path.join(HERE, room, f"{room}.tsx"), "w") as fh:
-            fh.write(tsx.replace(f'name="{template}"', f'name="{room}"')
-                        .replace(f"{template}.png", f"{room}.png")
-                        .replace(f'name="{template.capitalize()} floor', f'name="{room.capitalize()} floor'))
-        print(f"{room}: recomposed from {template} walls")
+        yield room, out
+
+
+def rename_tsx(tsx, old, new):
+    return (tsx.replace(f'name="{old}', f'name="{new}')
+               .replace(f'source="{old}', f'source="{new}')
+               .replace(f'name="{old.capitalize()} floor', f'name="{new.split("-")[0].capitalize()} floor'))
+
+
+def main():
+    floors = {room: floor_tile(room)[0] for room in ROOMS}
+    for suffix in ("", "-tall"):
+        template = TEMPLATE + suffix
+        if not os.path.exists(os.path.join(ORIG, f"{template}.png")):
+            print(f"skipping {template} (not in _originals/)")
+            continue
+        tsx = open(os.path.join(ORIG, f"{template}.tsx")).read()
+        for room, img in recompose(template, floors):
+            name = room + suffix
+            os.makedirs(os.path.join(HERE, room), exist_ok=True)
+            img.save(os.path.join(HERE, room, f"{name}.png"))
+            with open(os.path.join(HERE, room, f"{name}.tsx"), "w") as fh:
+                fh.write(rename_tsx(tsx, template, name))
+            if suffix:
+                shutil.copy(os.path.join(ORIG, f"{template}.json"), os.path.join(HERE, room, f"{name}.json"))
+            print(f"{name}: recomposed from {template}")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "cafeteria")
+    main()
