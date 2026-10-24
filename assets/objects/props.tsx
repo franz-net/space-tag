@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.11.0" name="props" tilewidth="128" tileheight="128" tilecount="32" columns="0" objectalignment="bottom">
+<tileset version="1.10" tiledversion="1.11.0" name="props" tilewidth="128" tileheight="128" tilecount="39" columns="0" nextid="39" objectalignment="bottom">
  <grid orientation="orthogonal" width="1" height="1"/>
  <tile id="0">
   <image source="barrel.png" width="28" height="48"/>
@@ -17,10 +17,10 @@
   <image source="engine-turbine.png" width="122" height="123"/>
  </tile>
  <tile id="5">
-  <image source="fix-comms.png" width="95" height="121"/>
+  <image source="fix-comms.png" width="56" height="75"/>
  </tile>
  <tile id="6">
-  <image source="fix-lights.png" width="91" height="125"/>
+  <image source="fix-lights.png" width="54" height="72"/>
  </tile>
  <tile id="7">
   <image source="fix-meltdown.png" width="110" height="110"/>
@@ -53,25 +53,25 @@
   <image source="stool.png" width="25" height="38"/>
  </tile>
  <tile id="17">
-  <image source="storage-shelf.png" width="110" height="118"/>
+  <image source="storage-shelf.png" width="64" height="77"/>
  </tile>
  <tile id="18">
-  <image source="task-colors.png" width="103" height="122"/>
+  <image source="task-colors.png" width="59" height="72"/>
  </tile>
  <tile id="19">
-  <image source="task-simon.png" width="82" height="121"/>
+  <image source="task-simon.png" width="70" height="66"/>
  </tile>
  <tile id="20">
-  <image source="task-targets.png" width="100" height="122"/>
+  <image source="task-targets.png" width="55" height="73"/>
  </tile>
  <tile id="21">
-  <image source="task-wires.png" width="102" height="120"/>
+  <image source="task-wires.png" width="68" height="67"/>
  </tile>
  <tile id="22">
   <image source="trash-bin.png" width="35" height="42"/>
  </tile>
  <tile id="23">
-  <image source="vending-machine.png" width="80" height="104"/>
+  <image source="vending-machine.png" width="54" height="78"/>
  </tile>
  <tile id="24">
   <image source="water-cooler.png" width="20" height="58"/>
@@ -96,5 +96,26 @@
  </tile>
  <tile id="31">
   <image source="window-wide.png" width="56" height="40"/>
+ </tile>
+ <tile id="32">
+  <image source="fix-comms-alt.png" width="68" height="78"/>
+ </tile>
+ <tile id="33">
+  <image source="fix-lights-alt.png" width="52" height="70"/>
+ </tile>
+ <tile id="34">
+  <image source="task-colors-alt.png" width="64" height="75"/>
+ </tile>
+ <tile id="35">
+  <image source="task-simon-alt.png" width="51" height="78"/>
+ </tile>
+ <tile id="36">
+  <image source="task-targets-alt.png" width="66" height="68"/>
+ </tile>
+ <tile id="37">
+  <image source="task-wires-alt.png" width="59" height="74"/>
+ </tile>
+ <tile id="38">
+  <image source="vending-machine-alt.png" width="52" height="78"/>
  </tile>
 </tileset>

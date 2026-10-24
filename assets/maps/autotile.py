@@ -37,10 +37,10 @@ LOWER, UPPER, FACE = 0, 1, 2
 
 # Where walls meet the floor inside a 64px tall-wall tile (measured from the
 # cafeteria-tall sheet; every room shares its walls).
-TOP_WALL_FLOOR = 16   # below the top edge of the cell under a wall face
-FACE_TOP = 20         # wall face starts this far into the cell above
-LEFT_WALL_FLOOR = 37  # into the cell whose left corners are wall
-RIGHT_WALL_FLOOR = 27  # into the cell whose right corners are wall
+TOP_WALL_FLOOR = 50   # below the top edge of the cell under a wall face
+FACE_TOP = 28         # wall face starts this far into the cell above
+LEFT_WALL_FLOOR = 39  # into the cell whose left corners are wall
+RIGHT_WALL_FLOOR = 26  # into the cell whose right corners are wall
 SNAP = 48             # how far (px) a prop may be from a wall to get snapped
 
 

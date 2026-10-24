@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Write ship.tmx: a starting Tiled map with today's ship layout.
 
-usage: python3 starter_map.py      (refuses to overwrite an existing ship.tmx)
+usage: python3 starter_map.py            (refuses to overwrite an existing ship.tmx)
+       python3 starter_map.py --update   (only rewrite the "rooms" layer of ship.tmx,
+                                          keeping props and everything else)
 
 Rooms and hallways come from server/gamemap.go (1 game unit = 2 art pixels,
-64px tiles). The hull is two tiles thick around them; everything else is
+64px tiles), with hallways widened to HALL_TILES. The hull is two tiles thick around them; everything else is
 left empty, which the game shows as open space. Edit the result freely in
 Tiled, then run autotile.py.
 """
@@ -19,6 +21,7 @@ T = 64                 # art pixels per tile
 UNIT = 2               # art pixels per game unit
 W, H = 69, 41          # tiles (the 2200x1300 ship at double resolution)
 HULL = 2               # wall thickness around rooms, in tiles
+HALL_TILES = 4         # hallway width in tiles (the tall top wall's face takes ~1.5)
 ROOMS = ["cafeteria", "medbay", "navigation", "engine", "storage", "reactor", "hallway"]
 
 
@@ -26,9 +29,18 @@ def layout():
     src = open(os.path.join(ROOT, "server", "gamemap.go")).read()
     rooms = [(rid, tuple(float(v) for v in b)) for rid, *b in
              re.findall(r'\{ID: "(\w+)".*?Bounds: Rect\{([\d.]+), ([\d.]+), ([\d.]+), ([\d.]+)\}', src)]
-    halls = [tuple(float(v) for v in b) for b in
+    halls = [widen(tuple(float(v) for v in b)) for b in
              re.findall(r'\{Bounds: Rect\{([\d.]+), ([\d.]+), ([\d.]+), ([\d.]+)\}\}', src)]
     return rooms, halls
+
+
+def widen(r):
+    """Make a hallway HALL_TILES wide across its short side, keeping its centre line."""
+    x, y, w, h = r
+    width = HALL_TILES * T / UNIT
+    if w > h:
+        return (x, y + h / 2 - width / 2, w, width)
+    return (x + w / 2 - width / 2, y, width, h)
 
 
 def inside(px, py, r):
@@ -38,8 +50,10 @@ def inside(px, py, r):
 
 def main():
     out = os.path.join(HERE, "ship.tmx")
-    if os.path.exists(out):
-        sys.exit("ship.tmx already exists; delete it first if you really want a fresh one.")
+    update = "--update" in sys.argv
+    if os.path.exists(out) and not update:
+        sys.exit("ship.tmx already exists; use --update to only redo its rooms layer, "
+                 "or delete it if you really want a fresh one.")
     rooms, halls = layout()
     tile_units = T / UNIT
 
@@ -88,6 +102,15 @@ def main():
         rows.append(",".join(map(str, row)))
 
     data = ",\n".join(rows)
+    if update:
+        # Keep everything else in the map; only the rooms layer's tiles change.
+        # (Tileset firstgids match because the room tilesets come first.)
+        text = open(out).read()
+        text = re.sub(r'(<layer [^>]*name="rooms"[^>]*>\s*<data encoding="csv">).*?(</data>)',
+                      lambda m: m.group(1) + "\n" + data + "\n" + m.group(2), text, flags=re.S)
+        open(out, "w").write(text)
+        print(f"updated the rooms layer of {out}; now run autotile.py")
+        return
     tmx = f"""<?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="{W}" height="{H}" tilewidth="{T}" tileheight="{T}" infinite="0" nextlayerid="2" nextobjectid="1">
 {chr(10).join(tsx_refs)}
