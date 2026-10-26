@@ -17,10 +17,10 @@
   <image source="engine-turbine.png" width="122" height="123"/>
  </tile>
  <tile id="5">
-  <image source="fix-comms.png" width="56" height="75"/>
+  <image source="fix-comms.png" width="40" height="75"/>
  </tile>
  <tile id="6">
-  <image source="fix-lights.png" width="54" height="72"/>
+  <image source="fix-lights.png" width="37" height="84"/>
  </tile>
  <tile id="7">
   <image source="fix-meltdown.png" width="110" height="110"/>
@@ -56,16 +56,16 @@
   <image source="storage-shelf.png" width="64" height="77"/>
  </tile>
  <tile id="18">
-  <image source="task-colors.png" width="59" height="72"/>
+  <image source="task-colors.png" width="64" height="57"/>
  </tile>
  <tile id="19">
-  <image source="task-simon.png" width="70" height="66"/>
+  <image source="task-simon.png" width="38" height="70"/>
  </tile>
  <tile id="20">
-  <image source="task-targets.png" width="55" height="73"/>
+  <image source="task-targets.png" width="52" height="65"/>
  </tile>
  <tile id="21">
-  <image source="task-wires.png" width="68" height="67"/>
+  <image source="task-wires.png" width="60" height="69"/>
  </tile>
  <tile id="22">
   <image source="trash-bin.png" width="35" height="42"/>
@@ -119,7 +119,7 @@
   <image source="vending-machine-alt.png" width="52" height="78"/>
  </tile>
  <tile id="39">
-  <image source="bridge-desk-buttons.png" width="79" height="77"/>
+  <image source="bridge-desk-buttons.png" width="76" height="56"/>
  </tile>
  <tile id="40">
   <image source="captain-chair.png" width="54" height="77"/>
@@ -155,7 +155,7 @@
   <image source="shield-console.png" width="62" height="74"/>
  </tile>
  <tile id="51">
-  <image source="slider-desk.png" width="77" height="76"/>
+  <image source="slider-desk.png" width="78" height="56"/>
  </tile>
  <tile id="52">
   <image source="starchart-table.png" width="74" height="58"/>
@@ -173,16 +173,16 @@
   <image source="window-bridge.png" width="200" height="60"/>
  </tile>
  <tile id="57">
-  <image source="dna-analyzer.png" width="57" height="66"/>
+  <image source="dna-analyzer.png" width="53" height="71"/>
  </tile>
  <tile id="58">
-  <image source="doctor-desk.png" width="65" height="58"/>
+  <image source="doctor-desk.png" width="65" height="61"/>
  </tile>
  <tile id="59">
-  <image source="first-aid-station.png" width="50" height="56"/>
+  <image source="first-aid-station.png" width="45" height="56"/>
  </tile>
  <tile id="60">
-  <image source="healing-pod.png" width="48" height="73"/>
+  <image source="healing-pod.png" width="50" height="83"/>
  </tile>
  <tile id="61">
   <image source="heart-monitor.png" width="38" height="65"/>
@@ -194,10 +194,10 @@
   <image source="iv-stand.png" width="28" height="69"/>
  </tile>
  <tile id="64">
-  <image source="med-sink.png" width="36" height="67"/>
+  <image source="med-sink.png" width="31" height="60"/>
  </tile>
  <tile id="65">
-  <image source="medicine-cabinet.png" width="56" height="64"/>
+  <image source="medicine-cabinet.png" width="57" height="76"/>
  </tile>
  <tile id="66">
   <image source="privacy-screen.png" width="67" height="63"/>
@@ -209,7 +209,7 @@
   <image source="scan-pad.png" width="56" height="63"/>
  </tile>
  <tile id="69">
-  <image source="specimen-fridge.png" width="47" height="71"/>
+  <image source="specimen-fridge.png" width="44" height="73"/>
  </tile>
  <tile id="70">
   <image source="supply-cart.png" width="49" height="62"/>
@@ -218,6 +218,6 @@
   <image source="wheelchair.png" width="55" height="62"/>
  </tile>
  <tile id="72">
-  <image source="xray-console.png" width="49" height="58"/>
+  <image source="xray-console.png" width="51" height="70"/>
  </tile>
 </tileset>
