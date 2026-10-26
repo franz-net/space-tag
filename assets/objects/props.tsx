@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.11.0" name="props" tilewidth="200" tileheight="128" tilecount="57" columns="0" nextid="57" objectalignment="bottom">
+<tileset version="1.10" tiledversion="1.11.0" name="props" tilewidth="200" tileheight="128" tilecount="73" columns="0" nextid="73" objectalignment="bottom">
  <grid orientation="orthogonal" width="1" height="1"/>
  <tile id="0">
   <image source="barrel.png" width="28" height="48"/>
@@ -171,5 +171,53 @@
  </tile>
  <tile id="56">
   <image source="window-bridge.png" width="200" height="60"/>
+ </tile>
+ <tile id="57">
+  <image source="dna-analyzer.png" width="57" height="66"/>
+ </tile>
+ <tile id="58">
+  <image source="doctor-desk.png" width="65" height="58"/>
+ </tile>
+ <tile id="59">
+  <image source="first-aid-station.png" width="50" height="56"/>
+ </tile>
+ <tile id="60">
+  <image source="healing-pod.png" width="48" height="73"/>
+ </tile>
+ <tile id="61">
+  <image source="heart-monitor.png" width="38" height="65"/>
+ </tile>
+ <tile id="62">
+  <image source="hospital-bed.png" width="75" height="66"/>
+ </tile>
+ <tile id="63">
+  <image source="iv-stand.png" width="28" height="69"/>
+ </tile>
+ <tile id="64">
+  <image source="med-sink.png" width="36" height="67"/>
+ </tile>
+ <tile id="65">
+  <image source="medicine-cabinet.png" width="56" height="64"/>
+ </tile>
+ <tile id="66">
+  <image source="privacy-screen.png" width="67" height="63"/>
+ </tile>
+ <tile id="67">
+  <image source="sanitizer-station.png" width="17" height="69"/>
+ </tile>
+ <tile id="68">
+  <image source="scan-pad.png" width="56" height="63"/>
+ </tile>
+ <tile id="69">
+  <image source="specimen-fridge.png" width="47" height="71"/>
+ </tile>
+ <tile id="70">
+  <image source="supply-cart.png" width="49" height="62"/>
+ </tile>
+ <tile id="71">
+  <image source="wheelchair.png" width="55" height="62"/>
+ </tile>
+ <tile id="72">
+  <image source="xray-console.png" width="49" height="58"/>
  </tile>
 </tileset>

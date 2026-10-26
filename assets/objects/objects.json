@@ -227,5 +227,69 @@
  "window-bridge-struts": {
   "kind": "mounted",
   "depth": 0
+ },
+ "hospital-bed": {
+  "kind": "free",
+  "depth": 40
+ },
+ "scan-pad": {
+  "kind": "free",
+  "depth": 30
+ },
+ "medicine-cabinet": {
+  "kind": "wall",
+  "depth": 14
+ },
+ "iv-stand": {
+  "kind": "free",
+  "depth": 10
+ },
+ "med-sink": {
+  "kind": "wall",
+  "depth": 14
+ },
+ "heart-monitor": {
+  "kind": "free",
+  "depth": 12
+ },
+ "privacy-screen": {
+  "kind": "free",
+  "depth": 10
+ },
+ "doctor-desk": {
+  "kind": "wall",
+  "depth": 22
+ },
+ "first-aid-station": {
+  "kind": "wall",
+  "depth": 14
+ },
+ "healing-pod": {
+  "kind": "wall",
+  "depth": 22
+ },
+ "wheelchair": {
+  "kind": "free",
+  "depth": 20
+ },
+ "supply-cart": {
+  "kind": "free",
+  "depth": 20
+ },
+ "dna-analyzer": {
+  "kind": "wall",
+  "depth": 22
+ },
+ "specimen-fridge": {
+  "kind": "wall",
+  "depth": 16
+ },
+ "xray-console": {
+  "kind": "wall",
+  "depth": 14
+ },
+ "sanitizer-station": {
+  "kind": "free",
+  "depth": 8
  }
 }
