@@ -459,5 +459,85 @@
  "container-green": {
   "kind": "free",
   "depth": 48
+ },
+ "reactor-console": {
+  "kind": "wall",
+  "depth": 20
+ },
+ "radiation-panel": {
+  "kind": "mounted",
+  "depth": 0
+ },
+ "coolant-pump": {
+  "kind": "wall",
+  "depth": 22
+ },
+ "power-meter": {
+  "kind": "mounted",
+  "depth": 0
+ },
+ "lever-bank": {
+  "kind": "mounted",
+  "depth": 0
+ },
+ "cooling-fan": {
+  "kind": "mounted",
+  "depth": 0
+ },
+ "capacitor-cabinet": {
+  "kind": "wall",
+  "depth": 16
+ },
+ "energy-monitor": {
+  "kind": "mounted",
+  "depth": 0
+ },
+ "radioactive-barrel": {
+  "kind": "free",
+  "depth": 18
+ },
+ "hazmat-suit": {
+  "kind": "free",
+  "depth": 16
+ },
+ "energy-cell-crate": {
+  "kind": "free",
+  "depth": 30
+ },
+ "pipe-junction": {
+  "kind": "free",
+  "depth": 20
+ },
+ "tesla-coil": {
+  "kind": "free",
+  "depth": 20
+ },
+ "shock-sign": {
+  "kind": "free",
+  "depth": 12
+ },
+ "coolant-canister": {
+  "kind": "free",
+  "depth": 20
+ },
+ "cable-spool": {
+  "kind": "free",
+  "depth": 26
+ },
+ "reactor-tube": {
+  "kind": "free",
+  "depth": 50
+ },
+ "reactor-orb": {
+  "kind": "free",
+  "depth": 56
+ },
+ "cooling-tank": {
+  "kind": "free",
+  "depth": 50
+ },
+ "fuel-rod-rack": {
+  "kind": "free",
+  "depth": 40
  }
 }

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.11.0" name="props" tilewidth="200" tileheight="165" tilecount="115" columns="0" nextid="115" objectalignment="bottom">
+<tileset version="1.10" tiledversion="1.11.0" name="props" tilewidth="200" tileheight="168" tilecount="135" columns="0" nextid="135" objectalignment="bottom">
  <grid orientation="orthogonal" width="1" height="1"/>
  <tile id="0">
   <image source="barrel.png" width="28" height="48"/>
@@ -345,5 +345,65 @@
  </tile>
  <tile id="114">
   <image source="container-orange.png" width="159" height="165"/>
+ </tile>
+ <tile id="115">
+  <image source="cable-spool.png" width="67" height="71"/>
+ </tile>
+ <tile id="116">
+  <image source="capacitor-cabinet.png" width="66" height="75"/>
+ </tile>
+ <tile id="117">
+  <image source="coolant-canister.png" width="44" height="78"/>
+ </tile>
+ <tile id="118">
+  <image source="coolant-pump.png" width="76" height="73"/>
+ </tile>
+ <tile id="119">
+  <image source="cooling-fan.png" width="61" height="61"/>
+ </tile>
+ <tile id="120">
+  <image source="cooling-tank.png" width="140" height="166"/>
+ </tile>
+ <tile id="121">
+  <image source="energy-cell-crate.png" width="58" height="59"/>
+ </tile>
+ <tile id="122">
+  <image source="energy-monitor.png" width="73" height="53"/>
+ </tile>
+ <tile id="123">
+  <image source="fuel-rod-rack.png" width="152" height="157"/>
+ </tile>
+ <tile id="124">
+  <image source="hazmat-suit.png" width="51" height="76"/>
+ </tile>
+ <tile id="125">
+  <image source="lever-bank.png" width="65" height="45"/>
+ </tile>
+ <tile id="126">
+  <image source="pipe-junction.png" width="61" height="79"/>
+ </tile>
+ <tile id="127">
+  <image source="power-meter.png" width="45" height="72"/>
+ </tile>
+ <tile id="128">
+  <image source="radiation-panel.png" width="66" height="72"/>
+ </tile>
+ <tile id="129">
+  <image source="radioactive-barrel.png" width="51" height="75"/>
+ </tile>
+ <tile id="130">
+  <image source="reactor-console.png" width="65" height="65"/>
+ </tile>
+ <tile id="131">
+  <image source="reactor-orb.png" width="162" height="168"/>
+ </tile>
+ <tile id="132">
+  <image source="reactor-tube.png" width="142" height="166"/>
+ </tile>
+ <tile id="133">
+  <image source="shock-sign.png" width="49" height="65"/>
+ </tile>
+ <tile id="134">
+  <image source="tesla-coil.png" width="51" height="76"/>
  </tile>
 </tileset>
