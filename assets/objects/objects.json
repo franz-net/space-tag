@@ -371,5 +371,93 @@
  "power-generator": {
   "kind": "free",
   "depth": 70
+ },
+ "cargo-shelf": {
+  "kind": "wall",
+  "depth": 14
+ },
+ "cargo-locker": {
+  "kind": "wall",
+  "depth": 16
+ },
+ "suit-locker": {
+  "kind": "wall",
+  "depth": 16
+ },
+ "inventory-terminal": {
+  "kind": "wall",
+  "depth": 20
+ },
+ "garbage-chute": {
+  "kind": "mounted",
+  "depth": 0
+ },
+ "canister-rack": {
+  "kind": "wall",
+  "depth": 14
+ },
+ "crate-stack": {
+  "kind": "free",
+  "depth": 40
+ },
+ "box-pile": {
+  "kind": "free",
+  "depth": 36
+ },
+ "forklift": {
+  "kind": "free",
+  "depth": 40
+ },
+ "sack-pallet": {
+  "kind": "free",
+  "depth": 36
+ },
+ "mystery-crate": {
+  "kind": "free",
+  "depth": 30
+ },
+ "cargo-robot": {
+  "kind": "free",
+  "depth": 20
+ },
+ "conveyor": {
+  "kind": "free",
+  "depth": 30
+ },
+ "storage-bins": {
+  "kind": "free",
+  "depth": 34
+ },
+ "cargo-net": {
+  "kind": "free",
+  "depth": 30
+ },
+ "space-food-cart": {
+  "kind": "free",
+  "depth": 30
+ },
+ "crate-pyramid": {
+  "kind": "free",
+  "depth": 70
+ },
+ "loader-mech": {
+  "kind": "free",
+  "depth": 50
+ },
+ "container-blue": {
+  "kind": "free",
+  "depth": 48
+ },
+ "container-orange": {
+  "kind": "free",
+  "depth": 48
+ },
+ "container-hazard": {
+  "kind": "free",
+  "depth": 48
+ },
+ "container-green": {
+  "kind": "free",
+  "depth": 48
  }
 }

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.11.0" name="props" tilewidth="200" tileheight="165" tilecount="93" columns="0" nextid="93" objectalignment="bottom">
+<tileset version="1.10" tiledversion="1.11.0" name="props" tilewidth="200" tileheight="165" tilecount="115" columns="0" nextid="115" objectalignment="bottom">
  <grid orientation="orthogonal" width="1" height="1"/>
  <tile id="0">
   <image source="barrel.png" width="28" height="48"/>
@@ -279,5 +279,71 @@
  </tile>
  <tile id="92">
   <image source="workbench.png" width="77" height="68"/>
+ </tile>
+ <tile id="93">
+  <image source="box-pile.png" width="73" height="72"/>
+ </tile>
+ <tile id="94">
+  <image source="canister-rack.png" width="68" height="75"/>
+ </tile>
+ <tile id="95">
+  <image source="cargo-locker.png" width="65" height="79"/>
+ </tile>
+ <tile id="96">
+  <image source="cargo-net.png" width="72" height="75"/>
+ </tile>
+ <tile id="97">
+  <image source="cargo-robot.png" width="46" height="73"/>
+ </tile>
+ <tile id="98">
+  <image source="cargo-shelf.png" width="72" height="79"/>
+ </tile>
+ <tile id="99">
+  <image source="conveyor.png" width="75" height="63"/>
+ </tile>
+ <tile id="100">
+  <image source="crate-pyramid.png" width="157" height="165"/>
+ </tile>
+ <tile id="101">
+  <image source="crate-stack.png" width="70" height="78"/>
+ </tile>
+ <tile id="102">
+  <image source="forklift.png" width="74" height="75"/>
+ </tile>
+ <tile id="103">
+  <image source="garbage-chute.png" width="56" height="54"/>
+ </tile>
+ <tile id="104">
+  <image source="inventory-terminal.png" width="60" height="77"/>
+ </tile>
+ <tile id="105">
+  <image source="loader-mech.png" width="158" height="165"/>
+ </tile>
+ <tile id="106">
+  <image source="mystery-crate.png" width="66" height="73"/>
+ </tile>
+ <tile id="107">
+  <image source="sack-pallet.png" width="76" height="67"/>
+ </tile>
+ <tile id="108">
+  <image source="space-food-cart.png" width="69" height="71"/>
+ </tile>
+ <tile id="109">
+  <image source="storage-bins.png" width="69" height="71"/>
+ </tile>
+ <tile id="110">
+  <image source="suit-locker.png" width="69" height="79"/>
+ </tile>
+ <tile id="111">
+  <image source="container-blue.png" width="163" height="165"/>
+ </tile>
+ <tile id="112">
+  <image source="container-green.png" width="159" height="129"/>
+ </tile>
+ <tile id="113">
+  <image source="container-hazard.png" width="161" height="129"/>
+ </tile>
+ <tile id="114">
+  <image source="container-orange.png" width="159" height="165"/>
  </tile>
 </tileset>
