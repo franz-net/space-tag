@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.11.0" name="props" tilewidth="200" tileheight="128" tilecount="73" columns="0" nextid="73" objectalignment="bottom">
+<tileset version="1.10" tiledversion="1.11.0" name="props" tilewidth="200" tileheight="165" tilecount="93" columns="0" nextid="93" objectalignment="bottom">
  <grid orientation="orthogonal" width="1" height="1"/>
  <tile id="0">
   <image source="barrel.png" width="28" height="48"/>
@@ -219,5 +219,65 @@
  </tile>
  <tile id="72">
   <image source="xray-console.png" width="51" height="70"/>
+ </tile>
+ <tile id="73">
+  <image source="breaker-panel.png" width="84" height="80"/>
+ </tile>
+ <tile id="74">
+  <image source="coolant-tank.png" width="84" height="77"/>
+ </tile>
+ <tile id="75">
+  <image source="engine-control-panel.png" width="69" height="73"/>
+ </tile>
+ <tile id="76">
+  <image source="engine-thruster.png" width="163" height="135"/>
+ </tile>
+ <tile id="77">
+  <image source="engine-turbine-big.png" width="149" height="165"/>
+ </tile>
+ <tile id="78">
+  <image source="exhaust-vent.png" width="76" height="77"/>
+ </tile>
+ <tile id="79">
+  <image source="fuel-barrel.png" width="46" height="75"/>
+ </tile>
+ <tile id="80">
+  <image source="fuel-pump.png" width="67" height="72"/>
+ </tile>
+ <tile id="81">
+  <image source="fuel-tank.png" width="142" height="164"/>
+ </tile>
+ <tile id="82">
+  <image source="gas-canisters.png" width="63" height="77"/>
+ </tile>
+ <tile id="83">
+  <image source="gauge-panel.png" width="79" height="48"/>
+ </tile>
+ <tile id="84">
+  <image source="gear-crate.png" width="73" height="66"/>
+ </tile>
+ <tile id="85">
+  <image source="pipe-column.png" width="47" height="84"/>
+ </tile>
+ <tile id="86">
+  <image source="portable-generator.png" width="64" height="66"/>
+ </tile>
+ <tile id="87">
+  <image source="power-generator.png" width="162" height="151"/>
+ </tile>
+ <tile id="88">
+  <image source="robot-arm.png" width="68" height="77"/>
+ </tile>
+ <tile id="89">
+  <image source="tool-cabinet.png" width="59" height="78"/>
+ </tile>
+ <tile id="90">
+  <image source="toolbox.png" width="71" height="59"/>
+ </tile>
+ <tile id="91">
+  <image source="traffic-cones.png" width="68" height="38"/>
+ </tile>
+ <tile id="92">
+  <image source="workbench.png" width="77" height="68"/>
  </tile>
 </tileset>

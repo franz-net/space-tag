@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="69" height="41" tilewidth="64" tileheight="64" infinite="0" nextlayerid="5" nextobjectid="1158">
+<map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="69" height="41" tilewidth="64" tileheight="64" infinite="0" nextlayerid="5" nextobjectid="1408">
  <tileset firstgid="1" source="../tilesets/cafeteria/cafeteria.tsx" />
  <tileset firstgid="17" source="../tilesets/medbay/medbay.tsx" />
  <tileset firstgid="33" source="../tilesets/navigation/navigation.tsx" />
@@ -106,107 +106,143 @@
 </data>
  </layer>
  <objectgroup id="3" name="walls" visible="0">
-  <object id="1059" x="64" y="64" width="1088" height="224" />
-  <object id="1060" x="1664" y="64" width="1088" height="224" />
-  <object id="1061" x="3264" y="64" width="1088" height="224" />
-  <object id="1062" x="1152" y="192" width="512" height="224" />
-  <object id="1063" x="2752" y="192" width="512" height="224" />
-  <object id="1064" x="64" y="288" width="160" height="672" />
-  <object id="1065" x="992" y="288" width="160" height="128" />
-  <object id="1066" x="1664" y="288" width="160" height="128" />
-  <object id="1067" x="2592" y="288" width="160" height="128" />
-  <object id="1068" x="3264" y="288" width="160" height="128" />
-  <object id="1069" x="4192" y="288" width="160" height="672" />
-  <object id="1070" x="992" y="608" width="832" height="160" />
-  <object id="1071" x="2592" y="608" width="832" height="160" />
-  <object id="1072" x="992" y="768" width="160" height="192" />
-  <object id="1073" x="1664" y="768" width="160" height="192" />
-  <object id="1074" x="2592" y="768" width="160" height="192" />
-  <object id="1075" x="3264" y="768" width="160" height="192" />
-  <object id="1076" x="224" y="800" width="128" height="1088" />
-  <object id="1077" x="608" y="800" width="384" height="160" />
-  <object id="1078" x="1824" y="800" width="256" height="160" />
-  <object id="1079" x="2336" y="800" width="256" height="160" />
-  <object id="1080" x="3424" y="800" width="128" height="1088" />
-  <object id="1081" x="3808" y="800" width="384" height="160" />
-  <object id="1082" x="192" y="960" width="32" height="1600" />
-  <object id="1083" x="608" y="960" width="160" height="928" />
-  <object id="1084" x="1920" y="960" width="160" height="928" />
-  <object id="1085" x="2336" y="960" width="160" height="928" />
-  <object id="1086" x="3392" y="960" width="32" height="1056" />
-  <object id="1087" x="3808" y="960" width="160" height="928" />
-  <object id="1088" x="64" y="1664" width="128" height="896" />
-  <object id="1089" x="768" y="1664" width="384" height="224" />
-  <object id="1090" x="1664" y="1664" width="256" height="224" />
-  <object id="1091" x="2496" y="1664" width="256" height="224" />
-  <object id="1092" x="3264" y="1664" width="128" height="352" />
-  <object id="1093" x="3968" y="1664" width="384" height="224" />
-  <object id="1094" x="1152" y="1792" width="512" height="224" />
-  <object id="1095" x="2752" y="1792" width="512" height="224" />
-  <object id="1096" x="992" y="1888" width="160" height="128" />
-  <object id="1097" x="1664" y="1888" width="160" height="128" />
-  <object id="1098" x="2592" y="1888" width="160" height="128" />
-  <object id="1099" x="4192" y="1888" width="160" height="672" />
-  <object id="1100" x="992" y="2208" width="832" height="160" />
-  <object id="1101" x="2592" y="2208" width="832" height="160" />
-  <object id="1102" x="992" y="2368" width="160" height="192" />
-  <object id="1103" x="1664" y="2368" width="160" height="192" />
-  <object id="1104" x="2592" y="2368" width="160" height="192" />
-  <object id="1105" x="3264" y="2368" width="160" height="192" />
-  <object id="1106" x="224" y="2400" width="768" height="160" />
-  <object id="1107" x="1824" y="2400" width="768" height="160" />
-  <object id="1108" x="3424" y="2400" width="768" height="160" />
-  <object id="1109" name="plant" type="prop" x="623" y="774" width="34" height="16" />
-  <object id="1110" name="medicine-cabinet" type="prop" x="251.50" y="306" width="57" height="14" />
-  <object id="1111" name="task-colors" type="prop" x="348" y="306" width="64" height="20" />
-  <object id="1112" name="med-sink" type="prop" x="444.50" y="306" width="31" height="14" />
-  <object id="1113" name="first-aid-station" type="prop" x="507.50" y="306" width="45" height="14" />
-  <object id="1114" name="dna-analyzer" type="prop" x="613.50" y="306" width="53" height="22" />
-  <object id="1115" name="task-simon" type="prop" x="711" y="306" width="38" height="18" />
-  <object id="1116" name="specimen-fridge" type="prop" x="788" y="306" width="44" height="16" />
-  <object id="1117" name="xray-console" type="prop" x="854.50" y="306" width="51" height="14" />
-  <object id="1118" name="healing-pod" type="prop" x="925" y="306" width="50" height="22" />
-  <object id="1119" name="hospital-bed" type="prop" x="247.50" y="420" width="75" height="40" />
-  <object id="1120" name="hospital-bed" type="prop" x="247.50" y="540" width="75" height="40" />
-  <object id="1121" name="hospital-bed" type="prop" x="247.50" y="660" width="75" height="40" />
-  <object id="1122" name="heart-monitor" type="prop" x="331" y="428" width="38" height="12" />
-  <object id="1123" name="iv-stand" type="prop" x="336" y="550" width="28" height="10" />
-  <object id="1124" name="heart-monitor" type="prop" x="331" y="668" width="38" height="12" />
-  <object id="1125" name="scan-pad" type="prop" x="612" y="530" width="56" height="30" />
-  <object id="1126" name="doctor-desk" type="prop" x="921" y="718" width="65" height="22" />
-  <object id="1127" name="supply-cart" type="prop" x="825.50" y="750" width="49" height="20" />
-  <object id="1128" name="wheelchair" type="prop" x="672.50" y="750" width="55" height="20" />
-  <object id="1129" name="sanitizer-station" type="prop" x="951.50" y="632" width="17" height="8" />
-  <object id="1130" name="privacy-screen" type="prop" x="246.50" y="780" width="67" height="10" />
-  <object id="1131" name="scanner-station" type="prop" x="3614" y="600" width="52" height="20" />
-  <object id="1132" name="task-targets" type="prop" x="3474" y="306" width="52" height="18" />
-  <object id="1133" name="bridge-desk-buttons" type="prop" x="3602" y="306" width="76" height="18" />
-  <object id="1134" name="navigation-console" type="prop" x="3751" y="306" width="118" height="44" />
-  <object id="1135" name="slider-desk" type="prop" x="3941" y="306" width="78" height="20" />
-  <object id="1136" name="fix-comms" type="prop" x="4110" y="306" width="40" height="18" />
-  <object id="1137" name="pilot-seat" type="prop" x="3616" y="408" width="48" height="12" />
-  <object id="1138" name="captain-chair" type="prop" x="3783" y="434" width="54" height="16" />
-  <object id="1139" name="pilot-seat" type="prop" x="3956" y="408" width="48" height="12" />
-  <object id="1140" name="server-rack" type="prop" x="4137" y="488" width="49" height="12" />
-  <object id="1141" name="computer-bank" type="prop" x="4118" y="576" width="68" height="14" />
-  <object id="1142" name="status-console" type="prop" x="4121" y="676" width="65" height="14" />
-  <object id="1143" name="printer-console" type="prop" x="4124" y="772" width="62" height="18" />
-  <object id="1144" name="shield-console" type="prop" x="3431" y="682" width="62" height="18" />
-  <object id="1145" name="sensor-console" type="prop" x="3431" y="772" width="68" height="18" />
-  <object id="1146" name="hologram-table" type="prop" x="3801" y="600" width="58" height="30" />
-  <object id="1147" name="starchart-table" type="prop" x="3963" y="700" width="74" height="30" />
-  <object id="1148" name="food-counter" type="prop" x="1931" y="306" width="118" height="36" />
-  <object id="1149" name="vending-machine" type="prop" x="2123" y="306" width="54" height="10" />
-  <object id="1150" name="water-cooler" type="prop" x="2235" y="306" width="20" height="10" />
-  <object id="1151" name="task-wires" type="prop" x="2320" y="306" width="60" height="16" />
-  <object id="1152" name="task-targets" type="prop" x="2464" y="306" width="52" height="18" />
-  <object id="1153" name="cafeteria-table" type="prop" x="1974" y="604" width="92" height="56" />
-  <object id="1154" name="cafeteria-table" type="prop" x="2354" y="604" width="92" height="56" />
-  <object id="1155" name="emergency-button" type="prop" x="2159.50" y="536" width="101" height="44" />
-  <object id="1156" name="plant" type="prop" x="1863" y="774" width="34" height="16" />
-  <object id="1157" name="trash-bin" type="prop" x="2537.50" y="776" width="35" height="14" />
+  <object id="1291" x="64" y="64" width="1088" height="224" />
+  <object id="1292" x="1664" y="64" width="1088" height="224" />
+  <object id="1293" x="3264" y="64" width="1088" height="224" />
+  <object id="1294" x="1152" y="192" width="512" height="224" />
+  <object id="1295" x="2752" y="192" width="512" height="224" />
+  <object id="1296" x="64" y="288" width="160" height="672" />
+  <object id="1297" x="992" y="288" width="160" height="128" />
+  <object id="1298" x="1664" y="288" width="160" height="128" />
+  <object id="1299" x="2592" y="288" width="160" height="128" />
+  <object id="1300" x="3264" y="288" width="160" height="128" />
+  <object id="1301" x="4192" y="288" width="160" height="672" />
+  <object id="1302" x="992" y="608" width="832" height="160" />
+  <object id="1303" x="2592" y="608" width="832" height="160" />
+  <object id="1304" x="992" y="768" width="160" height="192" />
+  <object id="1305" x="1664" y="768" width="160" height="192" />
+  <object id="1306" x="2592" y="768" width="160" height="192" />
+  <object id="1307" x="3264" y="768" width="160" height="192" />
+  <object id="1308" x="224" y="800" width="128" height="1088" />
+  <object id="1309" x="608" y="800" width="384" height="160" />
+  <object id="1310" x="1824" y="800" width="256" height="160" />
+  <object id="1311" x="2336" y="800" width="256" height="160" />
+  <object id="1312" x="3424" y="800" width="128" height="1088" />
+  <object id="1313" x="3808" y="800" width="384" height="160" />
+  <object id="1314" x="192" y="960" width="32" height="1600" />
+  <object id="1315" x="608" y="960" width="160" height="928" />
+  <object id="1316" x="1920" y="960" width="160" height="928" />
+  <object id="1317" x="2336" y="960" width="160" height="928" />
+  <object id="1318" x="3392" y="960" width="32" height="1056" />
+  <object id="1319" x="3808" y="960" width="160" height="928" />
+  <object id="1320" x="64" y="1664" width="128" height="896" />
+  <object id="1321" x="768" y="1664" width="384" height="224" />
+  <object id="1322" x="1664" y="1664" width="256" height="224" />
+  <object id="1323" x="2496" y="1664" width="256" height="224" />
+  <object id="1324" x="3264" y="1664" width="128" height="352" />
+  <object id="1325" x="3968" y="1664" width="384" height="224" />
+  <object id="1326" x="1152" y="1792" width="512" height="224" />
+  <object id="1327" x="2752" y="1792" width="512" height="224" />
+  <object id="1328" x="992" y="1888" width="160" height="128" />
+  <object id="1329" x="1664" y="1888" width="160" height="128" />
+  <object id="1330" x="2592" y="1888" width="160" height="128" />
+  <object id="1331" x="4192" y="1888" width="160" height="672" />
+  <object id="1332" x="992" y="2208" width="832" height="160" />
+  <object id="1333" x="2592" y="2208" width="832" height="160" />
+  <object id="1334" x="992" y="2368" width="160" height="192" />
+  <object id="1335" x="1664" y="2368" width="160" height="192" />
+  <object id="1336" x="2592" y="2368" width="160" height="192" />
+  <object id="1337" x="3264" y="2368" width="160" height="192" />
+  <object id="1338" x="224" y="2400" width="768" height="160" />
+  <object id="1339" x="1824" y="2400" width="768" height="160" />
+  <object id="1340" x="3424" y="2400" width="768" height="160" />
+  <object id="1341" name="portable-generator" type="prop" x="258" y="2215" width="64" height="20" />
+  <object id="1342" name="fuel-barrel" type="prop" x="347" y="2197" width="46" height="18" />
+  <object id="1343" name="task-wires" type="prop" x="262" y="1906" width="60" height="16" />
+  <object id="1344" name="engine-control-panel" type="prop" x="645.50" y="1906" width="69" height="20" />
+  <object id="1345" name="coolant-tank" type="prop" x="733" y="1906" width="84" height="22" />
+  <object id="1346" name="task-simon" type="prop" x="836" y="1906" width="38" height="18" />
+  <object id="1347" name="breaker-panel" type="prop" x="898" y="1906" width="84" height="14" />
+  <object id="1348" name="engine-thruster" type="prop" x="238.50" y="2040" width="163" height="70" />
+  <object id="1349" name="engine-thruster" type="prop" x="238.50" y="2320" width="163" height="70" />
+  <object id="1350" name="engine-turbine-big" type="prop" x="485.50" y="2331" width="149" height="64" />
+  <object id="1351" name="fuel-tank" type="prop" x="664" y="2335" width="142" height="60" />
+  <object id="1352" name="fuel-barrel" type="prop" x="907" y="2377" width="46" height="18" />
+  <object id="1353" name="gas-canisters" type="prop" x="898.50" y="2312" width="63" height="18" />
+  <object id="1354" name="robot-arm" type="prop" x="666" y="2068" width="68" height="22" />
+  <object id="1355" name="toolbox" type="prop" x="724.50" y="2094" width="71" height="16" />
+  <object id="1356" name="pipe-column" type="prop" x="446.50" y="1978" width="47" height="12" />
+  <object id="1357" name="traffic-cones" type="prop" x="526" y="1998" width="68" height="12" />
+  <object id="1358" name="gear-crate" type="prop" x="843.50" y="2066" width="73" height="24" />
+  <object id="1359" name="plant" type="prop" x="623" y="774" width="34" height="16" />
+  <object id="1360" name="medicine-cabinet" type="prop" x="251.50" y="306" width="57" height="14" />
+  <object id="1361" name="task-colors" type="prop" x="348" y="306" width="64" height="20" />
+  <object id="1362" name="med-sink" type="prop" x="444.50" y="306" width="31" height="14" />
+  <object id="1363" name="first-aid-station" type="prop" x="507.50" y="306" width="45" height="14" />
+  <object id="1364" name="dna-analyzer" type="prop" x="613.50" y="306" width="53" height="22" />
+  <object id="1365" name="task-simon" type="prop" x="711" y="306" width="38" height="18" />
+  <object id="1366" name="specimen-fridge" type="prop" x="788" y="306" width="44" height="16" />
+  <object id="1367" name="xray-console" type="prop" x="854.50" y="306" width="51" height="14" />
+  <object id="1368" name="healing-pod" type="prop" x="925" y="306" width="50" height="22" />
+  <object id="1369" name="hospital-bed" type="prop" x="247.50" y="420" width="75" height="40" />
+  <object id="1370" name="hospital-bed" type="prop" x="247.50" y="540" width="75" height="40" />
+  <object id="1371" name="hospital-bed" type="prop" x="247.50" y="660" width="75" height="40" />
+  <object id="1372" name="heart-monitor" type="prop" x="331" y="428" width="38" height="12" />
+  <object id="1373" name="iv-stand" type="prop" x="336" y="550" width="28" height="10" />
+  <object id="1374" name="heart-monitor" type="prop" x="331" y="668" width="38" height="12" />
+  <object id="1375" name="scan-pad" type="prop" x="612" y="530" width="56" height="30" />
+  <object id="1376" name="doctor-desk" type="prop" x="921" y="718" width="65" height="22" />
+  <object id="1377" name="supply-cart" type="prop" x="825.50" y="750" width="49" height="20" />
+  <object id="1378" name="wheelchair" type="prop" x="672.50" y="750" width="55" height="20" />
+  <object id="1379" name="sanitizer-station" type="prop" x="951.50" y="632" width="17" height="8" />
+  <object id="1380" name="privacy-screen" type="prop" x="246.50" y="780" width="67" height="10" />
+  <object id="1381" name="scanner-station" type="prop" x="3614" y="600" width="52" height="20" />
+  <object id="1382" name="task-targets" type="prop" x="3474" y="306" width="52" height="18" />
+  <object id="1383" name="bridge-desk-buttons" type="prop" x="3602" y="306" width="76" height="18" />
+  <object id="1384" name="navigation-console" type="prop" x="3751" y="306" width="118" height="44" />
+  <object id="1385" name="slider-desk" type="prop" x="3941" y="306" width="78" height="20" />
+  <object id="1386" name="fix-comms" type="prop" x="4110" y="306" width="40" height="18" />
+  <object id="1387" name="pilot-seat" type="prop" x="3616" y="408" width="48" height="12" />
+  <object id="1388" name="captain-chair" type="prop" x="3783" y="434" width="54" height="16" />
+  <object id="1389" name="pilot-seat" type="prop" x="3956" y="408" width="48" height="12" />
+  <object id="1390" name="server-rack" type="prop" x="4137" y="488" width="49" height="12" />
+  <object id="1391" name="computer-bank" type="prop" x="4118" y="576" width="68" height="14" />
+  <object id="1392" name="status-console" type="prop" x="4121" y="676" width="65" height="14" />
+  <object id="1393" name="printer-console" type="prop" x="4124" y="772" width="62" height="18" />
+  <object id="1394" name="shield-console" type="prop" x="3431" y="682" width="62" height="18" />
+  <object id="1395" name="sensor-console" type="prop" x="3431" y="772" width="68" height="18" />
+  <object id="1396" name="hologram-table" type="prop" x="3801" y="600" width="58" height="30" />
+  <object id="1397" name="starchart-table" type="prop" x="3963" y="700" width="74" height="30" />
+  <object id="1398" name="food-counter" type="prop" x="1931" y="306" width="118" height="36" />
+  <object id="1399" name="vending-machine" type="prop" x="2123" y="306" width="54" height="10" />
+  <object id="1400" name="water-cooler" type="prop" x="2235" y="306" width="20" height="10" />
+  <object id="1401" name="task-wires" type="prop" x="2320" y="306" width="60" height="16" />
+  <object id="1402" name="task-targets" type="prop" x="2464" y="306" width="52" height="18" />
+  <object id="1403" name="cafeteria-table" type="prop" x="1974" y="604" width="92" height="56" />
+  <object id="1404" name="cafeteria-table" type="prop" x="2354" y="604" width="92" height="56" />
+  <object id="1405" name="emergency-button" type="prop" x="2159.50" y="536" width="101" height="44" />
+  <object id="1406" name="plant" type="prop" x="1863" y="774" width="34" height="16" />
+  <object id="1407" name="trash-bin" type="prop" x="2537.50" y="776" width="35" height="14" />
  </objectgroup>
  <objectgroup id="4" name="props">
+  <object id="1289" gid="423" x="290" y="2235" width="64" height="66" />
+  <object id="1290" gid="416" x="370" y="2215" width="46" height="75" />
+  <object id="1158" gid="358" x="292" y="1922" width="60" height="69" />
+  <object id="1159" gid="412" x="680" y="1926" width="69" height="73" />
+  <object id="1160" gid="411" x="775" y="1928" width="84" height="77" />
+  <object id="1161" gid="356" x="855" y="1924" width="38" height="70" />
+  <object id="1162" gid="410" x="940" y="1920" width="84" height="80" />
+  <object id="1163" gid="2147484061" x="320" y="2110" width="163" height="135" />
+  <object id="1164" gid="2147484061" x="320" y="2390" width="163" height="135" />
+  <object id="1165" gid="414" x="560" y="2395" width="149" height="165" />
+  <object id="1166" gid="418" x="735" y="2395" width="142" height="164" />
+  <object id="1167" gid="416" x="930" y="2395" width="46" height="75" />
+  <object id="1168" gid="419" x="930" y="2330" width="63" height="77" />
+  <object id="1169" gid="425" x="700" y="2090" width="68" height="77" />
+  <object id="1170" gid="427" x="760" y="2110" width="71" height="59" />
+  <object id="1171" gid="422" x="470" y="1990" width="47" height="84" />
+  <object id="1172" gid="428" x="560" y="2010" width="68" height="38" />
+  <object id="1173" gid="421" x="880" y="2090" width="73" height="66" />
   <object id="959" gid="351" x="640" y="790" width="34" height="49" />
   <object id="840" gid="402" x="280" y="320" width="57" height="76" />
   <object id="841" gid="355" x="380" y="326" width="64" height="57" />

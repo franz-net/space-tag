@@ -291,5 +291,85 @@
  "sanitizer-station": {
   "kind": "free",
   "depth": 8
+ },
+ "engine-control-panel": {
+  "kind": "wall",
+  "depth": 20
+ },
+ "gauge-panel": {
+  "kind": "mounted",
+  "depth": 0
+ },
+ "tool-cabinet": {
+  "kind": "wall",
+  "depth": 18
+ },
+ "coolant-tank": {
+  "kind": "wall",
+  "depth": 22
+ },
+ "fuel-pump": {
+  "kind": "wall",
+  "depth": 18
+ },
+ "breaker-panel": {
+  "kind": "wall",
+  "depth": 14
+ },
+ "workbench": {
+  "kind": "wall",
+  "depth": 24
+ },
+ "exhaust-vent": {
+  "kind": "mounted",
+  "depth": 0
+ },
+ "fuel-barrel": {
+  "kind": "free",
+  "depth": 18
+ },
+ "gas-canisters": {
+  "kind": "free",
+  "depth": 18
+ },
+ "toolbox": {
+  "kind": "free",
+  "depth": 16
+ },
+ "portable-generator": {
+  "kind": "free",
+  "depth": 20
+ },
+ "pipe-column": {
+  "kind": "free",
+  "depth": 12
+ },
+ "robot-arm": {
+  "kind": "free",
+  "depth": 22
+ },
+ "traffic-cones": {
+  "kind": "free",
+  "depth": 12
+ },
+ "gear-crate": {
+  "kind": "free",
+  "depth": 24
+ },
+ "engine-thruster": {
+  "kind": "free",
+  "depth": 70
+ },
+ "engine-turbine-big": {
+  "kind": "free",
+  "depth": 64
+ },
+ "fuel-tank": {
+  "kind": "free",
+  "depth": 60
+ },
+ "power-generator": {
+  "kind": "free",
+  "depth": 70
  }
 }
