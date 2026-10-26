@@ -1,5 +1,5 @@
 import { Application, Assets, Container } from "pixi.js";
-import { MapRenderer, type GameMapData } from "./MapRenderer";
+import { ShipRenderer, loadShipArt, type GameMapData } from "./ShipRenderer";
 import { PlayerManager, clearTextureCache } from "./PlayerManager";
 import { Camera } from "./Camera";
 import { FogOfWar } from "./FogOfWar";
@@ -17,7 +17,7 @@ export interface PlayerInfo {
 
 export class Engine {
   app: Application;
-  mapRenderer!: MapRenderer;
+  ship!: ShipRenderer;
   playerManager!: PlayerManager;
   camera!: Camera;
   fogOfWar!: FogOfWar;
@@ -26,12 +26,12 @@ export class Engine {
   bodyRenderer!: BodyRenderer;
 
   private gameContainer!: Container;
-  private bgContainer!: Container;
   private shipContainer!: Container;
   private localPlayerId: string = "";
   private onMove: (dx: number, dy: number) => void;
   private lastInputSent = 0;
   private initialized = false;
+  private shipArt: Awaited<ReturnType<typeof loadShipArt>> | null = null;
 
   // Exposed for HUD to read
   nearTaskId: string | null = null;
@@ -64,11 +64,7 @@ export class Engine {
     this.gameContainer = new Container();
     this.app.stage.addChild(this.gameContainer);
 
-    // Background layer: space + stars (always visible)
-    this.bgContainer = new Container();
-    this.gameContainer.addChild(this.bgContainer);
-
-    // Ship layer: rooms, hallways, players (masked by vision circle)
+    // Ship layer: floor, furniture, players (masked by vision circle)
     this.shipContainer = new Container();
     this.gameContainer.addChild(this.shipContainer);
 
@@ -76,7 +72,8 @@ export class Engine {
 
     // Preload the character spritesheet so textures are ready before
     // PlayerManager creates sprites
-    await Assets.load("/sprites.png");
+    const [, art] = await Promise.all([Assets.load("/sprites.png"), loadShipArt()]);
+    this.shipArt = art;
   }
 
   setupMap(mapData: GameMapData, players: PlayerInfo[], localPlayerId: string) {
@@ -88,10 +85,11 @@ export class Engine {
       this.cafBounds = caf.bounds;
     }
 
-    // Render map
-    this.mapRenderer = new MapRenderer(mapData);
-    this.bgContainer.addChild(this.mapRenderer.backgroundContainer);
-    this.shipContainer.addChild(this.mapRenderer.shipContainer);
+    // Ship art (already downloaded in init). The space backdrop sits
+    // behind the camera-moved world and scrolls itself with parallax.
+    this.ship = new ShipRenderer(this.shipArt!, this.app.renderer, this.app.screen.width, this.app.screen.height);
+    this.app.stage.addChildAt(this.ship.backgroundContainer, 0);
+    this.shipContainer.addChild(this.ship.shipContainer);
 
     // Task stations (rendered on ship layer, between map and players)
     this.taskStations = new TaskStationsRenderer();
@@ -105,10 +103,11 @@ export class Engine {
     this.bodyRenderer = new BodyRenderer(colors);
     this.shipContainer.addChild(this.bodyRenderer.container);
 
-    // Create player sprites
-    this.playerManager = new PlayerManager(players);
+    // Players share a container with the furniture so they're depth-sorted
+    // with it (walk behind a console, in front of another)
+    this.playerManager = new PlayerManager(players, this.ship.entities);
     this.playerManager.setLocalPlayer(localPlayerId);
-    this.shipContainer.addChild(this.playerManager.container);
+    this.shipContainer.addChild(this.ship.entities);
 
     // Camera follows local player
     this.camera = new Camera(
@@ -177,6 +176,7 @@ export class Engine {
     const localPos = this.playerManager.getPosition(this.localPlayerId);
     if (localPos) {
       this.camera.follow(localPos.x, localPos.y);
+      this.ship.update(this.camera.x, this.camera.y, this.app.ticker.deltaMS / 1000);
       // Only update fog when alive — ghosts have full vision and the
       // mask Graphics is detached from the scene tree
       const localIsGhost = this.frozenIds.has(this.localPlayerId);
@@ -264,7 +264,6 @@ export class Engine {
   }
 
   private isInCafeteria(x: number, y: number): boolean {
-    if (!this.mapRenderer) return false;
     // Find cafeteria room from map data
     const room = this.cafBounds;
     if (!room) return false;
@@ -350,6 +349,7 @@ export class Engine {
     if (this.camera) {
       this.camera.resize(width, height);
     }
+    this.ship?.resize(width, height);
   }
 
   /** Returns the local player's screen position (for touch-follow controls). */

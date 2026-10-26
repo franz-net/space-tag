@@ -130,7 +130,8 @@ type AIBrain struct {
 }
 
 const (
-	AIWaypointReach  = 24.0 // distance to consider waypoint reached
+	AIWaypointReach  = 24.0 // distance to consider the destination reached
+	AICornerReach    = 8.0  // corners on the way must be hit closely, or bots clip furniture
 	AIDecisionDelay  = 500 * time.Millisecond
 	AIStuckThreshold = 20 // ticks (~1 second) before stuck recovery
 	AIStuckAvoidFor  = 8 * time.Second
@@ -278,7 +279,11 @@ func aiFollowPath(gs *GameState, room *Room, ai *AIBrain, pos Vec2, now time.Tim
 	target := ai.Path[ai.PathIdx]
 	dx := target.X - pos.X
 	dy := target.Y - pos.Y
-	if dx*dx+dy*dy < AIWaypointReach*AIWaypointReach {
+	reach := AICornerReach
+	if ai.PathIdx == len(ai.Path)-1 {
+		reach = AIWaypointReach
+	}
+	if dx*dx+dy*dy < reach*reach {
 		// Reached this waypoint, move to next
 		ai.PathIdx++
 		if ai.PathIdx >= len(ai.Path) {

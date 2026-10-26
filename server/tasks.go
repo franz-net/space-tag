@@ -35,27 +35,9 @@ type TasksState struct {
 	DoneTasks   int                        `json:"doneTasks"`    // completed so far
 }
 
-// Pre-defined task stations placed around the ship
-// Positions are inside the new room layout (rooms are 400x300)
+// Task stations come from the map (the task-* consoles placed in Tiled)
 func buildTaskStations() []TaskStation {
-	return []TaskStation{
-		// Medbay (x:100-500, y:100-400)
-		{ID: "task-1", Type: TaskMatchColors, RoomID: "medbay", Position: Vec2{200, 250}},
-		{ID: "task-2", Type: TaskSimonSays, RoomID: "medbay", Position: Vec2{400, 250}},
-		// Cafeteria (x:900-1300, y:100-400)
-		{ID: "task-3", Type: TaskTapTargets, RoomID: "cafeteria", Position: Vec2{1000, 250}},
-		{ID: "task-4", Type: TaskConnectWires, RoomID: "cafeteria", Position: Vec2{1200, 250}},
-		// Navigation (x:1700-2100, y:100-400)
-		{ID: "task-5", Type: TaskTapTargets, RoomID: "navigation", Position: Vec2{1900, 250}},
-		// Engine (x:100-500, y:900-1200) — tasks above the turbines
-		{ID: "task-6", Type: TaskConnectWires, RoomID: "engine", Position: Vec2{200, 960}},
-		{ID: "task-7", Type: TaskSimonSays, RoomID: "engine", Position: Vec2{400, 960}},
-		// Storage (x:900-1300, y:900-1200)
-		{ID: "task-8", Type: TaskMatchColors, RoomID: "storage", Position: Vec2{1100, 1050}},
-		// Reactor (x:1700-2100, y:900-1200)
-		{ID: "task-9", Type: TaskTapTargets, RoomID: "reactor", Position: Vec2{1800, 1050}},
-		{ID: "task-10", Type: TaskConnectWires, RoomID: "reactor", Position: Vec2{2000, 1050}},
-	}
+	return append([]TaskStation(nil), BuildMap().TaskStations...)
 }
 
 const TaskInteractionRange = 60.0

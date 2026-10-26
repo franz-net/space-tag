@@ -6,12 +6,16 @@ import "testing"
 // game does for AI bots (straight line + wall sliding) and reports whether it
 // arrived within AIWaypointReach before stalling for AIStuckThreshold ticks.
 func walkLikeAI(gm *GameMap, from, to Vec2) (Vec2, bool) {
+	return walkLeg(gm, from, to, AIWaypointReach)
+}
+
+func walkLeg(gm *GameMap, from, to Vec2, reach float64) (Vec2, bool) {
 	pos := from
 	dt := 1.0 / float64(TickRate)
 	stuck := 0
 	for i := 0; i < 2000; i++ {
 		dx, dy := to.X-pos.X, to.Y-pos.Y
-		if dx*dx+dy*dy < AIWaypointReach*AIWaypointReach {
+		if dx*dx+dy*dy < reach*reach {
 			return pos, true
 		}
 		nx, ny := normalize(dx, dy)
@@ -33,9 +37,14 @@ func walkLikeAI(gm *GameMap, from, to Vec2) (Vec2, bool) {
 // walkPath follows a FindPath route leg by leg.
 func walkPath(gm *GameMap, from, to Vec2) (Vec2, bool) {
 	pos := from
-	for _, leg := range FindPath(from, to) {
+	path := FindPath(from, to)
+	for i, leg := range path {
+		reach := AICornerReach
+		if i == len(path)-1 {
+			reach = AIWaypointReach
+		}
 		var ok bool
-		pos, ok = walkLikeAI(gm, pos, leg)
+		pos, ok = walkLeg(gm, pos, leg, reach)
 		if !ok {
 			return pos, false
 		}
@@ -45,41 +54,55 @@ func walkPath(gm *GameMap, from, to Vec2) (Vec2, bool) {
 
 func TestWaypointsWalkable(t *testing.T) {
 	gm := BuildMap()
-	for i, wp := range DefaultWaypoints {
-		if !gm.IsWalkable(wp, PlayerRadius) {
-			t.Errorf("waypoint %d at %v is not walkable", i, wp)
+	for i, wp := range gm.Waypoints {
+		if !gm.IsWalkable(wp.Pos, PlayerRadius) {
+			t.Errorf("waypoint %d at %v is not walkable", i, wp.Pos)
 		}
 	}
 }
 
-func TestWaypointAdjSymmetric(t *testing.T) {
-	for a, ns := range WaypointAdj {
-		for _, b := range ns {
-			found := false
-			for _, back := range WaypointAdj[b] {
-				if back == a {
-					found = true
-					break
-				}
-			}
-			if !found {
-				t.Errorf("waypoint %d lists %d but %d does not list %d", a, b, b, a)
-			}
-		}
-	}
-	for i := range DefaultWaypoints {
-		if len(WaypointAdj[i]) == 0 {
-			t.Errorf("waypoint %d has no neighbors", i)
-		}
-	}
-}
-
-func TestWaypointEdgesWalkable(t *testing.T) {
+func TestStationsWalkable(t *testing.T) {
 	gm := BuildMap()
-	for a, ns := range WaypointAdj {
-		for _, b := range ns {
-			if end, ok := walkLikeAI(gm, DefaultWaypoints[a], DefaultWaypoints[b]); !ok {
-				t.Errorf("edge %d -> %d stalls at (%.0f, %.0f)", a, b, end.X, end.Y)
+	for _, s := range gm.TaskStations {
+		if !gm.IsWalkable(s.Position, PlayerRadius) {
+			t.Errorf("task station %s at %v is not walkable", s.ID, s.Position)
+		}
+	}
+	for typ, fs := range gm.FixStations {
+		for _, f := range fs {
+			if !gm.IsWalkable(f.Position, PlayerRadius) {
+				t.Errorf("%s fix station %s at %v is not walkable", typ, f.ID, f.Position)
+			}
+		}
+	}
+}
+
+// Everyone starts in a row centred on the spawn point; the row must fit
+// for a full lobby.
+func TestSpawnRowWalkable(t *testing.T) {
+	gm := BuildMap()
+	ids := make([]string, 10)
+	for i := range ids {
+		ids[i] = string(rune('a' + i))
+	}
+	gs := NewGameState(gm, ids, map[string]Role{}, nil, DefaultSettings(), map[string]string{})
+	for id, p := range gs.Positions {
+		if !gm.IsWalkable(p, PlayerRadius) {
+			t.Errorf("spawn slot for %s at %v is not walkable", id, p)
+		}
+	}
+}
+
+// Every room and hallway waypoint can reach every other one.
+func TestWaypointsConnected(t *testing.T) {
+	gm := BuildMap()
+	for i, a := range gm.Waypoints {
+		for j, b := range gm.Waypoints {
+			if i == j {
+				continue
+			}
+			if end, ok := walkPath(gm, a.Pos, b.Pos); !ok {
+				t.Errorf("waypoint %d -> %d stalls at (%.0f, %.0f)", i, j, end.X, end.Y)
 			}
 		}
 	}

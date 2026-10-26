@@ -122,7 +122,8 @@ space-tag/
 │   ├── client.go           # Per-connection read/write pumps + handlers
 │   ├── room.go             # Room lifecycle, player slots, settings
 │   ├── game.go             # Game state, 20Hz tick loop, ghost movement
-│   ├── gamemap.go          # Map topology (rooms, hallways, obstacles, walkability)
+│   ├── gamemap.go          # Loads shipmap.json (rooms, walls, furniture, stations, walkability)
+│   ├── shipmap.json        # Exported from assets/maps/ship.tmx by export.py
 │   ├── collision.go        # Circle-vs-AABB collision + wall sliding
 │   ├── tasks.go            # Task stations, assignment, progress
 │   ├── voting.go           # Meeting state, votes, pre-defined messages
@@ -132,7 +133,7 @@ space-tag/
 │   ├── ai_perception.go    # What bots can see/hear → suspicion scores
 │   ├── ai_meeting.go       # Bot chat + voting
 │   ├── ai_personality.go   # Bot personalities (weights on top of difficulty)
-│   ├── pathfinding.go      # BFS waypoint graph (27 nodes)
+│   ├── pathfinding.go      # A* on a grid over the map, routes pulled tight
 │   ├── messages.go         # Protocol message types
 │   ├── player.go           # Player + role types
 │   └── errors.go
@@ -154,7 +155,7 @@ space-tag/
 │   │   │   └── tasks/                # The 4 mini-games
 │   │   ├── game/                     # PixiJS engine
 │   │   │   ├── Engine.ts
-│   │   │   ├── MapRenderer.ts        # Rooms, hallways, props, starfield
+│   │   │   ├── ShipRenderer.ts       # Baked ship art, depth-sorted furniture, parallax space
 │   │   │   ├── PlayerManager.ts      # Pixel art character sprites, walk cycle
 │   │   │   ├── BodyRenderer.ts       # Frozen body sprites
 │   │   │   ├── TaskStations.ts
@@ -171,8 +172,12 @@ space-tag/
 │   │   │   └── debug.ts
 │   │   └── stores/gameStore.ts
 │   └── public/
-│       └── sprites.png               # Character spritesheet (13x6 grid of 32x32 frames)
+│       ├── sprites.png               # Character spritesheet (13x6 grid of 32x32 frames)
+│       └── map/                      # Ship art exported by assets/maps/export.py
 ├── assets/                            # Source art files
+│   ├── maps/ship.tmx                 # The ship, edited in Tiled (+ autotile.py, export.py)
+│   ├── tilesets/                     # Room tilesets (PixelLab) and the scripts that clean them up
+│   ├── objects/                      # Furniture, task consoles, windows, space backdrop
 │   ├── space-tag-character-sprites.aseprite  # Aseprite source
 │   ├── space-tag-character-sprites.png       # High-res export (7x scale)
 │   └── astro-front-ref.png                   # Character reference art
@@ -247,7 +252,7 @@ These rules drive every decision:
 ### Phase 5: AI Players ✅
 - [x] Bots can be added/removed in lobby
 - [x] Kid-friendly AI names (Astro, Cosmo, Nova, Pixel, Zippy, Blip, Fizz, Boop...)
-- [x] BFS pathfinding on a 27-node waypoint graph (room centers + secondary points + hallways), with tests that every route between stations is walkable
+- [x] A* pathfinding on a grid built from the map's collision, so bots route around any furniture layout; tests check every route between stations is walkable
 - [x] **Utility AI** — every half second each bot scores its options (report body, fix sabotage, do task, hunt, fake task, sabotage, leave the scene, wander) and commits to the best, with a bonus for finishing what it started
 - [x] Stuck detection — a bot that stalls gives up on that action for a few seconds and picks another
 - [x] AI crewmate — does nearest tasks first, reports bodies it sees, splits up to fix sabotage; keeps doing tasks as a ghost
@@ -317,7 +322,16 @@ python3 tools/templates/map_template.py
 python3 tools/templates/map_template_pixelart.py
 ```
 
-If you change room bounds, obstacles, or stations in `server/gamemap.go`, `tasks.go`, or `sabotage.go`, update the coordinates in the map scripts to match.
+### Editing the ship
+
+The ship lives in `assets/maps/ship.tmx`; open it in [Tiled](https://www.mapeditor.org/). Paint rooms on the "rooms" layer, place furniture on the "props" layer, then:
+
+```bash
+python3 assets/maps/autotile.py   # tall walls, collision, snaps furniture to walls
+python3 assets/maps/export.py     # writes server/shipmap.json and client/public/map/
+```
+
+Task consoles (`task-*`) and sabotage fixes (`fix-*`) become stations automatically; give any other piece of furniture a custom property `station` (e.g. `meltdown`) to make it one. The spawn point is the "spawn" point on the "markers" layer. `go test ./...` in `server/` checks every station is reachable by the bots.
 
 ## Contributing
 

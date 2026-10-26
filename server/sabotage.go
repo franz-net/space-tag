@@ -19,23 +19,10 @@ const (
 	SabotageFixRange = 60.0              // same as TaskInteractionRange
 )
 
-// Fix stations — where crew must go to repair each sabotage.
+// Fix stations — where crew must go to repair each sabotage. They come
+// from the map (fix-* consoles, or furniture with a "station" property).
 // Meltdown requires BOTH engine AND reactor to be fixed.
-// Fix station positions are placed away from obstacles:
-//   Reactor core obstacle: {1860, 1030, 80, 80} — fix station above it
-//   Engine turbines: y:1040-1100 — fix station above them
-var SabotageFixStations = map[SabotageType][]FixStation{
-	SabotageLightsOut: {
-		{ID: "reactor", RoomID: "reactor", Position: Vec2{1900, 960}},
-	},
-	SabotageCommsDown: {
-		{ID: "navigation", RoomID: "navigation", Position: Vec2{1900, 250}},
-	},
-	SabotageMeltdown: {
-		{ID: "engine", RoomID: "engine", Position: Vec2{300, 960}},
-		{ID: "reactor", RoomID: "reactor", Position: Vec2{1900, 960}},
-	},
-}
+var SabotageFixStations = BuildMap().FixStations
 
 // FixStation is a location where a crewmate can repair a sabotage.
 type FixStation struct {

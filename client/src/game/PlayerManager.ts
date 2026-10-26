@@ -90,8 +90,9 @@ export class PlayerManager {
   private localPlayerId: string = "";
   private sheetTexture: Texture | null = null;
 
-  constructor(players: PlayerInfo[]) {
-    this.container = new Container();
+  /** `container` may be shared with other depth-sorted things (furniture) */
+  constructor(players: PlayerInfo[], container?: Container) {
+    this.container = container ?? new Container();
 
     // Load spritesheet
     const tex = Texture.from("/sprites.png");
@@ -227,6 +228,8 @@ export class PlayerManager {
 
       sprite.container.x = sprite.currentX;
       sprite.container.y = sprite.currentY;
+      // Depth: feet are at the bottom of the circle
+      sprite.container.zIndex = sprite.currentY + PLAYER_RADIUS;
 
       // Movement direction — pick sprite based on which way we're moving
       const movedX = sprite.currentX - sprite.prevX;

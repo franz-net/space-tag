@@ -310,17 +310,21 @@ func aiTaskOptions(gs *GameState, ai *AIBrain, pos Vec2, base float64) []aiOptio
 	return opts
 }
 
-// Room waypoints a bot may wander to (centers + in-room secondaries).
-var aiWanderSpots = []int{0, 1, 2, 3, 4, 5, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22}
-
 func aiWanderOption(ai *AIBrain, pos Vec2, score float64) aiOption {
 	// Keep the same destination while already wandering so the commitment
-	// bonus applies; otherwise pick a fresh random spot.
+	// bonus applies; otherwise pick a fresh random spot in some room.
 	if ai.Goal == GoalWander && ai.GoalTarget != "" {
 		return aiOption{Goal: GoalWander, Target: ai.GoalTarget, Pos: ai.GoalPos, Score: score}
 	}
-	idx := aiWanderSpots[rand.Intn(len(aiWanderSpots))]
-	return aiOption{Goal: GoalWander, Target: strconv.Itoa(idx), Pos: DefaultWaypoints[idx], Score: score}
+	wps := BuildMap().Waypoints
+	var spots []int
+	for i, w := range wps {
+		if w.Room != "" {
+			spots = append(spots, i)
+		}
+	}
+	idx := spots[rand.Intn(len(spots))]
+	return aiOption{Goal: GoalWander, Target: strconv.Itoa(idx), Pos: wps[idx].Pos, Score: score}
 }
 
 // aiLeaveSceneOption heads for a room center far from where the bot is.
@@ -328,15 +332,20 @@ func aiLeaveSceneOption(ai *AIBrain, pos Vec2, score float64) aiOption {
 	if ai.Goal == GoalLeaveScene && ai.GoalTarget != "" {
 		return aiOption{Goal: GoalLeaveScene, Target: ai.GoalTarget, Pos: ai.GoalPos, Score: score}
 	}
-	var far []int
-	for i := 0; i <= 5; i++ {
-		if !withinRange(pos, DefaultWaypoints[i], 600) {
+	wps := BuildMap().Waypoints
+	var centers, far []int
+	for i, w := range wps {
+		if !w.Center {
+			continue
+		}
+		centers = append(centers, i)
+		if !withinRange(pos, w.Pos, 600) {
 			far = append(far, i)
 		}
 	}
-	idx := rand.Intn(6)
+	idx := centers[rand.Intn(len(centers))]
 	if len(far) > 0 {
 		idx = far[rand.Intn(len(far))]
 	}
-	return aiOption{Goal: GoalLeaveScene, Target: strconv.Itoa(idx), Pos: DefaultWaypoints[idx], Score: score}
+	return aiOption{Goal: GoalLeaveScene, Target: strconv.Itoa(idx), Pos: wps[idx].Pos, Score: score}
 }

@@ -1,5 +1,12 @@
 package main
 
+import (
+	_ "embed"
+	"encoding/json"
+	"fmt"
+	"sync"
+)
+
 // Vec2 represents a 2D position
 type Vec2 struct {
 	X float64 `json:"x"`
@@ -25,6 +32,13 @@ type Hallway struct {
 	Bounds Rect `json:"bounds"`
 }
 
+// Waypoint is a spot bots can wander to. Room is "" in hallways.
+type Waypoint struct {
+	Pos    Vec2
+	Room   string
+	Center bool // the middle of its room
+}
+
 type GameMap struct {
 	Rooms     []MapRoom `json:"rooms"`
 	Hallways  []Hallway `json:"hallways"`
@@ -33,127 +47,120 @@ type GameMap struct {
 	SpawnPos  Vec2      `json:"spawnPos"`
 	Width     float64   `json:"width"`
 	Height    float64   `json:"height"`
+
+	// Server-only data
+	TaskStations []TaskStation                `json:"-"`
+	FixStations  map[SabotageType][]FixStation `json:"-"`
+	Waypoints    []Waypoint                   `json:"-"`
+	nav          *navGrid
 }
 
-// BuildMap creates the spaceship map with 6 rooms connected by hallways.
+// shipmap.json is exported from assets/maps/ship.tmx by assets/maps/export.py.
 //
-// Layout (roughly):
-//
-//	Medbay -------- Navigation
-//	  |                |
-//	  |    Cafeteria   |
-//	  |   (center)     |
-//	  |                |
-//	Engine -- Storage -- Reactor
+//go:embed shipmap.json
+var shipMapJSON []byte
+
+var (
+	shipMapOnce sync.Once
+	shipMap     *GameMap
+)
+
+// BuildMap returns the spaceship map. It is parsed once and shared: treat
+// it as read-only.
 func BuildMap() *GameMap {
-	// Layout: 6 rooms in 2 rows of 3, with cafeteria as central hub
-	//   Medbay -------- Cafeteria -------- Navigation
-	//     |                 |                  |
-	//     |                 |                  |
-	//   Engine -------- Storage --------- Reactor
-	//
-	// All hallways overlap rooms by >= 50px so player (radius 16) can transition
-	rooms := []MapRoom{
-		// Top row
-		{ID: "medbay", Label: "Medbay", Bounds: Rect{100, 100, 400, 300}, Color: "#2D6A4F"},
-		{ID: "cafeteria", Label: "Cafeteria", Bounds: Rect{900, 100, 400, 300}, Color: "#4A5568"},
-		{ID: "navigation", Label: "Navigation", Bounds: Rect{1700, 100, 400, 300}, Color: "#1E40AF"},
-		// Bottom row
-		{ID: "engine", Label: "Engine", Bounds: Rect{100, 900, 400, 300}, Color: "#92400E"},
-		{ID: "storage", Label: "Storage", Bounds: Rect{900, 900, 400, 300}, Color: "#5B21B6"},
-		{ID: "reactor", Label: "Reactor", Bounds: Rect{1700, 900, 400, 300}, Color: "#991B1B"},
-	}
-
-	// Hallways — each rect overlaps both connected rooms by 60px
-	hallways := []Hallway{
-		// Top row horizontal connectors
-		// Medbay <-> Cafeteria
-		{Bounds: Rect{440, 200, 520, 100}},
-		// Cafeteria <-> Navigation
-		{Bounds: Rect{1240, 200, 520, 100}},
-
-		// Bottom row horizontal connectors
-		// Engine <-> Storage
-		{Bounds: Rect{440, 1000, 520, 100}},
-		// Storage <-> Reactor
-		{Bounds: Rect{1240, 1000, 520, 100}},
-
-		// Vertical connectors between top and bottom rows
-		// Medbay <-> Engine
-		{Bounds: Rect{200, 340, 100, 620}},
-		// Cafeteria <-> Storage
-		{Bounds: Rect{1050, 340, 100, 620}},
-		// Navigation <-> Reactor
-		{Bounds: Rect{1800, 340, 100, 620}},
-	}
-
-	// Obstacles — collision boxes for room furniture. Each box must keep
-	// ≥50px clearance from hallway entrances so players (radius 16) can
-	// pass through without getting stuck.
-	//
-	// Hallway entrances to remember:
-	//   Medbay right: x≈440, y:200-300   |  Medbay bottom: x:200-300, y≈340
-	//   Caf bottom: x:1050-1150, y≈340   |  Engine right: x≈440, y:1000-1100
-	//   Storage left: x≈960, y:1000-1100 |  Storage right: x≈1240, y:1000-1100
-	obstacles := []Rect{
-		// Medbay: two beds in upper portion (clear of bottom/right hallways)
-		{150, 170, 60, 70},
-		{390, 170, 60, 70},
-
-		// Cafeteria: table below center (clear of spawn circle above and
-		// hallway entrance at y:340 below)
-		{1040, 265, 120, 40},
-
-		// Navigation: console desk at top
-		{1820, 160, 160, 25},
-
-		// Engine: two turbines centered (right one stays clear of x:440 hallway)
-		{170, 1040, 60, 60},
-		{330, 1040, 60, 60},
-
-		// Storage: two crate stacks (clear of left x:960 and right x:1240 hallways)
-		{960, 980, 80, 70},
-		{1120, 1080, 80, 70},
-
-		// Reactor: containment core in center
-		{1860, 1030, 80, 80},
-	}
-
-	gm := &GameMap{
-		Rooms:     rooms,
-		Hallways:  hallways,
-		Walls:     nil,
-		Obstacles: obstacles,
-		SpawnPos:  Vec2{1100, 180}, // spawn circle (r=48) → y:132-228, above table at y:265
-		Width:     2200,
-		Height:    1300,
-	}
-
-	return gm
+	shipMapOnce.Do(func() {
+		gm, err := parseShipMap(shipMapJSON)
+		if err != nil {
+			panic(fmt.Sprintf("shipmap.json: %v", err))
+		}
+		shipMap = gm
+	})
+	return shipMap
 }
 
-// IsWalkable checks if a circle at pos with given radius is fully inside any
-// room or hallway AND does not overlap any obstacle (furniture/props).
+func parseShipMap(data []byte) (*GameMap, error) {
+	var raw struct {
+		Width     float64      `json:"width"`
+		Height    float64      `json:"height"`
+		Rooms     []MapRoom    `json:"rooms"`
+		Hallways  []Hallway    `json:"hallways"`
+		Walls     [][4]float64 `json:"walls"`
+		Obstacles [][4]float64 `json:"obstacles"`
+		Spawn     [2]float64   `json:"spawn"`
+		Tasks     []struct {
+			Type TaskType `json:"type"`
+			Room string   `json:"room"`
+			X    float64  `json:"x"`
+			Y    float64  `json:"y"`
+		} `json:"tasks"`
+		Fixes []struct {
+			Sabotage SabotageType `json:"sabotage"`
+			ID       string       `json:"id"`
+			Room     string       `json:"room"`
+			X        float64      `json:"x"`
+			Y        float64      `json:"y"`
+		} `json:"fixes"`
+		Waypoints []struct {
+			X    float64 `json:"x"`
+			Y    float64 `json:"y"`
+			Room string  `json:"room"`
+		} `json:"waypoints"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	rects := func(in [][4]float64) []Rect {
+		out := make([]Rect, len(in))
+		for i, r := range in {
+			out[i] = Rect{r[0], r[1], r[2], r[3]}
+		}
+		return out
+	}
+	gm := &GameMap{
+		Rooms:       raw.Rooms,
+		Hallways:    raw.Hallways,
+		Walls:       rects(raw.Walls),
+		Obstacles:   rects(raw.Obstacles),
+		SpawnPos:    Vec2{raw.Spawn[0], raw.Spawn[1]},
+		Width:       raw.Width,
+		Height:      raw.Height,
+		FixStations: map[SabotageType][]FixStation{},
+	}
+	for i, t := range raw.Tasks {
+		gm.TaskStations = append(gm.TaskStations, TaskStation{
+			ID: fmt.Sprintf("task-%d", i+1), Type: t.Type, RoomID: t.Room, Position: Vec2{t.X, t.Y},
+		})
+	}
+	for _, f := range raw.Fixes {
+		gm.FixStations[f.Sabotage] = append(gm.FixStations[f.Sabotage], FixStation{
+			ID: f.ID, RoomID: f.Room, Position: Vec2{f.X, f.Y},
+		})
+	}
+	seen := map[string]bool{}
+	for _, w := range raw.Waypoints {
+		center := w.Room != "" && !seen[w.Room]
+		seen[w.Room] = true
+		gm.Waypoints = append(gm.Waypoints, Waypoint{Pos: Vec2{w.X, w.Y}, Room: w.Room, Center: center})
+	}
+	if len(gm.TaskStations) == 0 || len(gm.Waypoints) == 0 {
+		return nil, fmt.Errorf("map has no task stations or waypoints")
+	}
+	gm.nav = newNavGrid(gm)
+	return gm, nil
+}
+
+// IsWalkable checks if a circle at pos with given radius stays inside the map
+// and doesn't touch a wall or a piece of furniture.
 func (gm *GameMap) IsWalkable(pos Vec2, radius float64) bool {
-	inBounds := false
-	for _, r := range gm.Rooms {
-		if circleInRect(pos, radius, r.Bounds) {
-			inBounds = true
-			break
-		}
-	}
-	if !inBounds {
-		for _, h := range gm.Hallways {
-			if circleInRect(pos, radius, h.Bounds) {
-				inBounds = true
-				break
-			}
-		}
-	}
-	if !inBounds {
+	if pos.X-radius < 0 || pos.Y-radius < 0 || pos.X+radius > gm.Width || pos.Y+radius > gm.Height {
 		return false
 	}
-	// Reject if overlapping any obstacle
+	for _, w := range gm.Walls {
+		if circleOverlapsRect(pos, radius, w) {
+			return false
+		}
+	}
 	for _, obs := range gm.Obstacles {
 		if circleOverlapsRect(pos, radius, obs) {
 			return false

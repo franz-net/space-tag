@@ -1,171 +1,197 @@
 package main
 
-import "math"
+import (
+	"container/heap"
+	"math"
+)
 
-// Pre-defined waypoint positions matching the map layout in gamemap.go.
-// Rooms: medbay, cafeteria, navigation, engine, storage, reactor (centers)
-// Hallways: 7 connectors between adjacent rooms (centers)
-//
-// Indices:
-//
-//	 0 medbay center
-//	 1 cafeteria center
-//	 2 navigation center
-//	 3 engine center
-//	 4 storage center
-//	 5 reactor center
-//	 6 hallway medbay <-> cafeteria
-//	 7 hallway cafeteria <-> navigation
-//	 8 hallway engine <-> storage
-//	 9 hallway storage <-> reactor
-//	10 hallway medbay <-> engine
-//	11 hallway cafeteria <-> storage
-//	12 hallway navigation <-> reactor
-//
-// Room waypoints are placed in open areas away from obstacles:
-//
-//	Medbay beds:     {150,170,60,70} and {390,170,60,70} — waypoint below beds
-//	Cafeteria table: {1040,265,120,40} — waypoint above table, detours around it
-//	Navigation desk: {1820,160,160,25} — waypoint below desk
-//	Engine turbines: {170,1040,60,60} and {330,1040,60,60} — waypoint above
-//	Storage crates:  {960,980,80,70} and {1120,1080,80,70} — waypoint above
-//	Reactor core:    {1860,1030,80,80} — waypoint above
-//
-// Main waypoints: room centers (placed in obstacle-free zones) + hallway centers.
-// Secondary waypoints (13+) give AI extra routing inside rooms so they can
-// navigate around furniture instead of getting stuck on obstacle edges.
-//
-// Every edge must be a straight line a player circle can walk without
-// touching an obstacle — TestWaypointEdgesWalkable enforces this.
-var DefaultWaypoints = []Vec2{
-	// Primary room waypoints
-	{300, 300},  // 0 medbay — below the beds (y:170-240)
-	{1100, 200}, // 1 cafeteria — above the table (y:265)
-	{1900, 300}, // 2 navigation — below the desk (y:160-185)
-	{300, 960},  // 3 engine — above the turbines (y:1040)
-	{1100, 960}, // 4 storage — above the crates (y:980)
-	{1900, 960}, // 5 reactor — above the core (y:1030)
-	// Hallway waypoints
-	{700, 250},   // 6 hall medbay-caf
-	{1500, 250},  // 7 hall caf-nav
-	{700, 1050},  // 8 hall engine-sto
-	{1500, 1050}, // 9 hall sto-reactor
-	{250, 650},   // 10 hall medbay-engine
-	{1100, 650},  // 11 hall caf-storage
-	{1850, 650},  // 12 hall nav-reactor
-	// Secondary room waypoints — extra points for obstacle avoidance
-	{300, 160},   // 13 medbay top (between the two beds)
-	{200, 350},   // 14 medbay bottom-left (clear of right hallway)
-	{1100, 370},  // 15 cafeteria bottom (below table, at the hallway mouth)
-	{1750, 250},  // 16 navigation left (beside desk, clear of it)
-	{1800, 350},  // 17 navigation bottom
-	{170, 960},   // 18 engine left (left of turbines)
-	{430, 960},   // 19 engine right (right of turbines, clear of hallway)
-	{1100, 1100}, // 20 storage bottom (between crate stacks)
-	{1800, 1150}, // 21 reactor bottom-left (left of core, so 22 can reach it)
-	{1780, 960},  // 22 reactor left (left of core)
-	{990, 250},   // 23 cafeteria left of table
-	{990, 345},   // 24 cafeteria bottom-left (below table's left end)
-	{1210, 250},  // 25 cafeteria right of table
-	{1210, 345},  // 26 cafeteria bottom-right (below table's right end)
+// Bots find their way with A* over a grid laid on the map, then pull the
+// route tight so they walk straight lines between corners. The grid is
+// built from the same collision the players use, so any map exported from
+// Tiled works without hand-placed waypoints.
+
+const (
+	navCell      = 16.0              // grid spacing in game units
+	navClearance = PlayerRadius + 3  // keep routes a little off walls and furniture
+	navLineStep  = 6.0               // sampling step when checking a straight line
+)
+
+type navGrid struct {
+	gm   *GameMap
+	cols int
+	rows int
+	open []bool // cell centre is walkable with clearance
 }
 
-// WaypointAdj lists neighbors for each waypoint. Keep it symmetric: if a
-// lists b, b must list a (TestWaypointAdjSymmetric).
-var WaypointAdj = map[int][]int{
-	0:  {6, 10, 13, 14},
-	1:  {6, 7, 23, 25}, // table blocks the straight drop to 15 — go around
-	2:  {7, 12, 16, 17},
-	3:  {8, 10, 18, 19},
-	4:  {9, 11, 20}, // crates block the straight line to 8 — go via 20
-	5:  {9, 12, 22}, // core blocks the straight line to 21 — go via 22
-	6:  {0, 1},
-	7:  {1, 2},
-	8:  {3, 19, 20},
-	9:  {4, 5},
-	10: {0, 3, 14},
-	11: {4, 15},
-	12: {2, 5, 17, 22},
-	// Secondary waypoints connect to their room's primary + neighbors
-	13: {0, 14},      // medbay top ↔ medbay center, medbay bottom-left
-	14: {0, 13, 10},  // medbay bottom-left ↔ medbay center, top, vertical hall
-	15: {11, 24, 26}, // cafeteria hallway mouth ↔ vertical hall, both table detours
-	16: {2, 17},      // nav top ↔ nav center, nav bottom
-	17: {2, 16, 12},  // nav bottom ↔ nav center, nav top, vertical hall
-	18: {3, 19},      // engine left ↔ engine center, engine right
-	19: {3, 18, 8},   // engine right ↔ engine center, left, hallway
-	20: {4, 8},       // storage bottom ↔ storage center, left hallway
-	21: {22},         // reactor bottom-left ↔ reactor left
-	22: {5, 21, 12},  // reactor left ↔ reactor center, bottom, vertical hall
-	23: {1, 24},      // cafeteria table detour (left)
-	24: {23, 15},
-	25: {1, 26}, // cafeteria table detour (right)
-	26: {25, 15},
-}
-
-// nearestWaypoint returns the index of the closest waypoint (Euclidean) to pos
-func nearestWaypoint(pos Vec2) int {
-	best := 0
-	bestDist := math.MaxFloat64
-	for i, wp := range DefaultWaypoints {
-		dx := pos.X - wp.X
-		dy := pos.Y - wp.Y
-		d := dx*dx + dy*dy
-		if d < bestDist {
-			bestDist = d
-			best = i
+func newNavGrid(gm *GameMap) *navGrid {
+	n := &navGrid{gm: gm, cols: int(gm.Width / navCell), rows: int(gm.Height / navCell)}
+	n.open = make([]bool, n.cols*n.rows)
+	for r := 0; r < n.rows; r++ {
+		for c := 0; c < n.cols; c++ {
+			n.open[r*n.cols+c] = gm.IsWalkable(n.center(c, r), navClearance)
 		}
 	}
-	return best
+	return n
 }
 
-// FindPath returns a list of waypoints + final destination from `from` to `to`.
-// Uses BFS on the waypoint graph.
-func FindPath(from, to Vec2) []Vec2 {
-	start := nearestWaypoint(from)
-	end := nearestWaypoint(to)
+func (n *navGrid) center(c, r int) Vec2 {
+	return Vec2{(float64(c) + 0.5) * navCell, (float64(r) + 0.5) * navCell}
+}
 
-	if start == end {
-		return []Vec2{to}
+func (n *navGrid) cellOf(p Vec2) (int, int) {
+	c := int(p.X / navCell)
+	r := int(p.Y / navCell)
+	return max(0, min(n.cols-1, c)), max(0, min(n.rows-1, r))
+}
+
+func (n *navGrid) isOpen(c, r int) bool {
+	return c >= 0 && r >= 0 && c < n.cols && r < n.rows && n.open[r*n.cols+c]
+}
+
+// nearestOpen finds the open cell closest to p (searching outward in rings).
+func (n *navGrid) nearestOpen(p Vec2) (int, int, bool) {
+	c0, r0 := n.cellOf(p)
+	if n.isOpen(c0, r0) {
+		return c0, r0, true
 	}
+	for ring := 1; ring < 12; ring++ {
+		best, bc, br := math.MaxFloat64, 0, 0
+		for r := r0 - ring; r <= r0+ring; r++ {
+			for c := c0 - ring; c <= c0+ring; c++ {
+				if (r != r0-ring && r != r0+ring && c != c0-ring && c != c0+ring) || !n.isOpen(c, r) {
+					continue
+				}
+				q := n.center(c, r)
+				if d := (q.X-p.X)*(q.X-p.X) + (q.Y-p.Y)*(q.Y-p.Y); d < best {
+					best, bc, br = d, c, r
+				}
+			}
+		}
+		if best < math.MaxFloat64 {
+			return bc, br, true
+		}
+	}
+	return 0, 0, false
+}
 
-	// BFS
-	visited := map[int]bool{start: true}
+// clearLine reports whether a player circle can walk straight from a to b.
+func (n *navGrid) clearLine(a, b Vec2) bool {
+	dx, dy := b.X-a.X, b.Y-a.Y
+	dist := math.Sqrt(dx*dx + dy*dy)
+	steps := int(dist/navLineStep) + 1
+	for i := 1; i <= steps; i++ {
+		t := float64(i) / float64(steps)
+		if !n.gm.IsWalkable(Vec2{a.X + dx*t, a.Y + dy*t}, PlayerRadius+1) {
+			return false
+		}
+	}
+	return true
+}
+
+type navItem struct {
+	cell int
+	f    float64
+}
+type navHeap []navItem
+
+func (h navHeap) Len() int           { return len(h) }
+func (h navHeap) Less(i, j int) bool { return h[i].f < h[j].f }
+func (h navHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h *navHeap) Push(x any)        { *h = append(*h, x.(navItem)) }
+func (h *navHeap) Pop() any {
+	old := *h
+	it := old[len(old)-1]
+	*h = old[:len(old)-1]
+	return it
+}
+
+// route runs A* between two cells and returns the cell centres on the way.
+func (n *navGrid) route(sc, sr, ec, er int) []Vec2 {
+	start, end := sr*n.cols+sc, er*n.cols+ec
+	g := map[int]float64{start: 0}
 	parent := map[int]int{start: -1}
-	queue := []int{start}
-	found := false
-
-	for len(queue) > 0 {
-		curr := queue[0]
-		queue = queue[1:]
-		if curr == end {
-			found = true
-			break
+	closed := map[int]bool{}
+	h := func(cell int) float64 {
+		c, r := cell%n.cols, cell/n.cols
+		dx, dy := math.Abs(float64(c-ec)), math.Abs(float64(r-er))
+		return math.Max(dx, dy) + (math.Sqrt2-1)*math.Min(dx, dy) // octile
+	}
+	pq := &navHeap{{start, h(start)}}
+	for pq.Len() > 0 {
+		cur := heap.Pop(pq).(navItem).cell
+		if cur == end {
+			var cells []Vec2
+			for at := end; at != -1; at = parent[at] {
+				cells = append(cells, n.center(at%n.cols, at/n.cols))
+			}
+			for i, j := 0, len(cells)-1; i < j; i, j = i+1, j-1 {
+				cells[i], cells[j] = cells[j], cells[i]
+			}
+			return cells
 		}
-		for _, neighbor := range WaypointAdj[curr] {
-			if !visited[neighbor] {
-				visited[neighbor] = true
-				parent[neighbor] = curr
-				queue = append(queue, neighbor)
+		if closed[cur] {
+			continue
+		}
+		closed[cur] = true
+		c, r := cur%n.cols, cur/n.cols
+		for dr := -1; dr <= 1; dr++ {
+			for dc := -1; dc <= 1; dc++ {
+				if (dc == 0 && dr == 0) || !n.isOpen(c+dc, r+dr) {
+					continue
+				}
+				// No cutting corners: diagonal steps need both sides open
+				if dc != 0 && dr != 0 && (!n.isOpen(c+dc, r) || !n.isOpen(c, r+dr)) {
+					continue
+				}
+				next := (r+dr)*n.cols + c + dc
+				cost := g[cur] + 1
+				if dc != 0 && dr != 0 {
+					cost = g[cur] + math.Sqrt2
+				}
+				if old, ok := g[next]; ok && old <= cost {
+					continue
+				}
+				g[next] = cost
+				parent[next] = cur
+				heap.Push(pq, navItem{next, cost + h(next)})
 			}
 		}
 	}
+	return nil
+}
 
-	if !found {
+// FindPath returns the points to walk through from `from` to `to`, ending
+// at `to`. If there's no route it returns just `to` (the bot's stuck
+// detection then gives up on that goal).
+func FindPath(from, to Vec2) []Vec2 {
+	n := BuildMap().nav
+	if n.clearLine(from, to) {
 		return []Vec2{to}
 	}
-
-	// Reconstruct path: end → start, then reverse, then append destination
-	pathIdx := []int{}
-	for n := end; n != -1; n = parent[n] {
-		pathIdx = append([]int{n}, pathIdx...)
+	sc, sr, ok1 := n.nearestOpen(from)
+	ec, er, ok2 := n.nearestOpen(to)
+	if !ok1 || !ok2 {
+		return []Vec2{to}
 	}
-
-	path := make([]Vec2, 0, len(pathIdx)+1)
-	for _, idx := range pathIdx {
-		path = append(path, DefaultWaypoints[idx])
+	cells := n.route(sc, sr, ec, er)
+	if cells == nil {
+		return []Vec2{to}
 	}
-	path = append(path, to)
+	cells = append(cells, to)
 
+	// Pull the route tight: from each corner, jump to the farthest point
+	// still reachable in a straight line.
+	path := []Vec2{}
+	cur := from
+	i := 0
+	for i < len(cells) {
+		j := len(cells) - 1
+		for j > i && !n.clearLine(cur, cells[j]) {
+			j--
+		}
+		path = append(path, cells[j])
+		cur = cells[j]
+		i = j + 1
+	}
 	return path
 }
